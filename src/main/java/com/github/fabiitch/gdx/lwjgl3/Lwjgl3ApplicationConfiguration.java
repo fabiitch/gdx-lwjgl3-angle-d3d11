@@ -14,7 +14,7 @@
  * limitations under the License.
  ******************************************************************************/
 
-package com.github.dgzt.gdx.lwjgl3;
+package com.github.fabiitch.gdx.lwjgl3;
 
 import java.io.PrintStream;
 import java.nio.IntBuffer;
@@ -37,7 +37,6 @@ import com.badlogic.gdx.Graphics.DisplayMode;
 import com.badlogic.gdx.Graphics.Monitor;
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.audio.Music;
-import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Graphics.Lwjgl3Monitor;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.glutils.HdpiMode;
 import com.badlogic.gdx.graphics.glutils.HdpiUtils;
@@ -88,6 +87,33 @@ public class Lwjgl3ApplicationConfiguration extends Lwjgl3WindowConfiguration {
 		Lwjgl3ApplicationConfiguration copy = new Lwjgl3ApplicationConfiguration();
 		copy.set(config);
 		return copy;
+	}
+
+	/** Creates a windowed ANGLE/D3D11 configuration pre-tuned to favor Windows DWM composed flip.
+	 *
+	 * This config uses an opaque decorated non-resizable window, disables vsync and requests ANGLE's manual EGL HWND surface
+	 * with the fast present path.
+	 *
+	 * @param title window title
+	 * @param width window width
+	 * @param height window height
+	 * @param glesMajor requested OpenGL ES major version
+	 * @param glesMinor requested OpenGL ES minor version */
+	public static Lwjgl3ApplicationConfiguration createAngleComposedFlipWindow (String title, int width, int height,
+		int glesMajor, int glesMinor) {
+		Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
+		config.setTitle(title);
+		config.setWindowedMode(width, height);
+		config.setResizable(false);
+		config.setDecorated(true);
+		config.setTransparentFramebuffer(true);
+		config.useVsync(false);
+		config.setForegroundFPS(0);
+		config.setBackBufferConfig(8, 8, 8, 8, 16, 0, 0);
+		config.setOpenGLEmulation(GLEmulation.ANGLE_GLES32, glesMajor, glesMinor);
+		config.useAngleManualEglSurface(true);
+		config.useAngleFastPresentPath(true);
+		return config;
 	}
 
 	void set (Lwjgl3ApplicationConfiguration config) {

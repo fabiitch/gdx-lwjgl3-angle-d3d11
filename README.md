@@ -1,5 +1,8 @@
 # ANGLE D3D11 backend for libGDX
 
+Based from https://github.com/Dgzt/gdx-lwjgl3-angle-vulkan 
+
+
 LWJGL3/libGDX backend that creates an OpenGL ES context through Google ANGLE and requests the D3D11 renderer on Windows.
 
 ## Supported operating systems
@@ -27,8 +30,8 @@ There is no Gradle download task. `processResources` checks that these files exi
 Add the dependency to a LWJGL3 libGDX project, then use `Lwjgl3D3D11Application` in the desktop launcher:
 
 ```java
-import com.github.dgzt.gdx.lwjgl3.Lwjgl3ApplicationConfiguration;
-import com.github.dgzt.gdx.lwjgl3.Lwjgl3D3D11Application;
+import com.github.fabiitch.gdx.lwjgl3.Lwjgl3ApplicationConfiguration;
+import com.github.fabiitch.gdx.lwjgl3.Lwjgl3D3D11Application;
 
 public class Lwjgl3Launcher {
     public static void main(String[] args) {

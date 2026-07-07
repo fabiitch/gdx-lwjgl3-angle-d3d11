@@ -14,7 +14,7 @@
  * limitations under the License.
  ******************************************************************************/
 
-package com.github.dgzt.gdx.lwjgl3;
+package com.github.fabiitch.gdx.lwjgl3;
 
 import java.nio.IntBuffer;
 

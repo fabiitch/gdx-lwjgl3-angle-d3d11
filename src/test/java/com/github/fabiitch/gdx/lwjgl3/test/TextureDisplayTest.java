@@ -1,4 +1,4 @@
-package com.github.dgzt.gdx.lwjgl3.test;
+package com.github.fabiitch.gdx.lwjgl3.test;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
@@ -7,8 +7,8 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.TimeUtils;
-import com.github.dgzt.gdx.lwjgl3.Lwjgl3ApplicationConfiguration;
-import com.github.dgzt.gdx.lwjgl3.Lwjgl3D3D11Application;
+import com.github.fabiitch.gdx.lwjgl3.Lwjgl3ApplicationConfiguration;
+import com.github.fabiitch.gdx.lwjgl3.Lwjgl3D3D11Application;
 
 public class TextureDisplayTest {
     public static void main(String[] args) {
@@ -23,16 +23,14 @@ public class TextureDisplayTest {
         boolean vSync = Boolean.parseBoolean(System.getProperty("textureTest.vsync", "false"));
         int foregroundFps = Integer.parseInt(System.getProperty("textureTest.foregroundFps", "0"));
 
-        Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
-        config.setTitle("ANGLE D3D11 Texture Test ES " + glesMajor + "." + glesMinor);
-        config.setWindowedMode(960, 540);
+        Lwjgl3ApplicationConfiguration config = Lwjgl3ApplicationConfiguration.createAngleComposedFlipWindow(
+                "ANGLE D3D11 Texture Test ES " + glesMajor + "." + glesMinor, 960, 540, glesMajor, glesMinor);
         config.setResizable(resizable);
         config.setDecorated(decorated);
         config.setTransparentFramebuffer(transparentFramebuffer);
         config.useVsync(vSync);
         config.setForegroundFPS(foregroundFps);
         config.disableAudio(true);
-        config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32, glesMajor, glesMinor);
         config.useAngleManualEglSurface(angleFlip);
         config.useAngleFastPresentPath(angleFlip);
 

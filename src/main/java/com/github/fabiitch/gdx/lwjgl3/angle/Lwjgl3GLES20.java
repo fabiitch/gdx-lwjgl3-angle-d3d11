@@ -14,7 +14,7 @@
  * limitations under the License.
  ******************************************************************************/
 
-package com.github.dgzt.gdx.lwjgl3.angle;
+package com.github.fabiitch.gdx.lwjgl3.angle;
 
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.utils.GdxRuntimeException;

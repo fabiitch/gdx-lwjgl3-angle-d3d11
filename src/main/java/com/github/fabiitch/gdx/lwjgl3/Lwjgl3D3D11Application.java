@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  ******************************************************************************/
-package com.github.dgzt.gdx.lwjgl3;
+package com.github.fabiitch.gdx.lwjgl3;
 
 
 import java.io.File;
@@ -34,7 +34,7 @@ import com.badlogic.gdx.backends.lwjgl3.audio.OpenALLwjgl3Audio;
 import com.badlogic.gdx.graphics.glutils.GLVersion;
 
 import com.badlogic.gdx.utils.*;
-import com.github.dgzt.gdx.lwjgl3.angle.ANGLELoader;
+import com.github.fabiitch.gdx.lwjgl3.angle.ANGLELoader;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.AMDDebugOutput;
@@ -59,8 +59,6 @@ import com.badlogic.gdx.Net;
 import com.badlogic.gdx.Preferences;
 import com.badlogic.gdx.backends.lwjgl3.audio.mock.MockAudio;
 import com.badlogic.gdx.math.GridPoint2;
-import org.lwjgl.system.Configuration;
-import org.lwjgl.system.ThreadLocalUtil;
 
 public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
     private final Lwjgl3ApplicationConfiguration config;
