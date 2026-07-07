@@ -454,7 +454,7 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
             window.getGraphics().gl20.glClearColor(config.initialBackgroundColor.r, config.initialBackgroundColor.g,
                     config.initialBackgroundColor.b, config.initialBackgroundColor.a);
             window.getGraphics().gl20.glClear(GL11.GL_COLOR_BUFFER_BIT);
-            GLFW.glfwSwapBuffers(windowHandle);
+            swapBuffers(windowHandle);
         }
 
         if (currentWindow != null) {
@@ -465,6 +465,8 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
     }
 
     static long createGlfwWindow (Lwjgl3ApplicationConfiguration config, long sharedContextWindow) {
+        boolean manualAngleSurface = config.glEmulation == Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32
+                && config.angleManualEglSurface;
         GLFW.glfwDefaultWindowHints();
         GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
         GLFW.glfwWindowHint(GLFW.GLFW_RESIZABLE, config.windowResizable ? GLFW.GLFW_TRUE : GLFW.GLFW_FALSE);
@@ -493,10 +495,14 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
             }
         } else {
             if (config.glEmulation == Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32) {
-                GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_CREATION_API, GLFW.GLFW_EGL_CONTEXT_API);
-                GLFW.glfwWindowHint(GLFW.GLFW_CLIENT_API, GLFW.GLFW_OPENGL_ES_API);
-                GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, config.gles30ContextMajorVersion);
-                GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, config.gles30ContextMinorVersion);
+                if (manualAngleSurface) {
+                    GLFW.glfwWindowHint(GLFW.GLFW_CLIENT_API, GLFW.GLFW_NO_API);
+                } else {
+                    GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_CREATION_API, GLFW.GLFW_EGL_CONTEXT_API);
+                    GLFW.glfwWindowHint(GLFW.GLFW_CLIENT_API, GLFW.GLFW_OPENGL_ES_API);
+                    GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, config.gles30ContextMajorVersion);
+                    GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, config.gles30ContextMinorVersion);
+                }
             }
         }
 
@@ -552,8 +558,12 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
         if (config.windowIconPaths != null) {
             Lwjgl3Window.setIcon(windowHandle, config.windowIconPaths, config.windowIconFileType);
         }
-        GLFW.glfwMakeContextCurrent(windowHandle);
-        GLFW.glfwSwapInterval(config.vSyncEnabled ? 1 : 0);
+        if (manualAngleSurface) {
+            AngleEglContext.create(windowHandle, sharedContextWindow, config);
+        } else {
+            GLFW.glfwMakeContextCurrent(windowHandle);
+            GLFW.glfwSwapInterval(config.vSyncEnabled ? 1 : 0);
+        }
         if (config.glEmulation == Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32) {
             try {
                 Class gles = Class.forName("org.lwjgl.opengles.GLES");
@@ -585,6 +595,22 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
         }
 
         return windowHandle;
+    }
+
+    static void makeContextCurrent (long windowHandle) {
+        if (AngleEglContext.isManaged(windowHandle)) {
+            AngleEglContext.makeCurrent(windowHandle);
+        } else {
+            GLFW.glfwMakeContextCurrent(windowHandle);
+        }
+    }
+
+    static void swapBuffers (long windowHandle) {
+        if (AngleEglContext.isManaged(windowHandle)) {
+            AngleEglContext.swapBuffers(windowHandle);
+        } else {
+            GLFW.glfwSwapBuffers(windowHandle);
+        }
     }
 
     private static void initiateGL (boolean useGLES20) {

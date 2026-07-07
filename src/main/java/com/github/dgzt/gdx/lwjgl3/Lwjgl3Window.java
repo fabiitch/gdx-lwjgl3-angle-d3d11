@@ -427,14 +427,14 @@ public class Lwjgl3Window implements Disposable {
             listener.resize(graphics.getWidth(), graphics.getHeight());
             graphics.update();
             listener.render();
-            GLFW.glfwSwapBuffers(windowHandle);
+            Lwjgl3D3D11Application.swapBuffers(windowHandle);
             return true;
         }
 
         if (shouldRender) {
             graphics.update();
             listener.render();
-            GLFW.glfwSwapBuffers(windowHandle);
+            Lwjgl3D3D11Application.swapBuffers(windowHandle);
         }
 
         if (!iconified) input.prepareNext();
@@ -477,7 +477,7 @@ public class Lwjgl3Window implements Disposable {
         Gdx.gl = Gdx.gl20;
         Gdx.input = input;
 
-        GLFW.glfwMakeContextCurrent(windowHandle);
+        Lwjgl3D3D11Application.makeContextCurrent(windowHandle);
     }
 
     @Override
@@ -487,6 +487,7 @@ public class Lwjgl3Window implements Disposable {
         Lwjgl3Cursor.dispose(this);
         graphics.dispose();
         input.dispose();
+        AngleEglContext.destroy(windowHandle);
         GLFW.glfwSetWindowFocusCallback(windowHandle, null);
         GLFW.glfwSetWindowIconifyCallback(windowHandle, null);
         GLFW.glfwSetWindowCloseCallback(windowHandle, null);

@@ -6,6 +6,13 @@ def projectName = 'gdx-lwjgl3-angle-d3d11'
 def gdxVersionValue = providers.gradleProperty('gdxVersion').getOrElse('1.14.2')
 def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').getOrElse('3.3.3')
 def textureTestGlesVersion = providers.gradleProperty('gles').getOrElse('2.0')
+def textureTestAngleFlip = providers.gradleProperty('angleFlip').getOrElse('true')
+def textureTestAutoExitSeconds = providers.gradleProperty('autoExitSeconds').getOrElse('')
+def textureTestResizable = providers.gradleProperty('textureTestResizable').getOrElse('false')
+def textureTestDecorated = providers.gradleProperty('textureTestDecorated').getOrElse('true')
+def textureTestTransparentFramebuffer = providers.gradleProperty('textureTestTransparentFramebuffer').getOrElse('false')
+def textureTestVsync = providers.gradleProperty('textureTestVsync').getOrElse('false')
+def textureTestForegroundFps = providers.gradleProperty('textureTestForegroundFps').getOrElse('0')
 
 group = 'com.github.dgzt.gdx.lwjgl3'
 version = providers.gradleProperty('VERSION_NAME').getOrElse('1.0.0-SNAPSHOT')
@@ -85,8 +92,16 @@ tasks.register('runTextureTest', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.github.dgzt.gdx.lwjgl3.test.TextureDisplayTest'
     jvmArgs '--enable-native-access=ALL-UNNAMED'
+    if (!textureTestAutoExitSeconds.isEmpty()) {
+        jvmArgs "-DtextureTest.autoExitSeconds=${textureTestAutoExitSeconds}"
+    }
+    jvmArgs "-DtextureTest.resizable=${textureTestResizable}"
+    jvmArgs "-DtextureTest.decorated=${textureTestDecorated}"
+    jvmArgs "-DtextureTest.transparentFramebuffer=${textureTestTransparentFramebuffer}"
+    jvmArgs "-DtextureTest.vsync=${textureTestVsync}"
+    jvmArgs "-DtextureTest.foregroundFps=${textureTestForegroundFps}"
     def glesVersionParts = textureTestGlesVersion.split('\\.', 2)
-    args glesVersionParts[0], glesVersionParts.length > 1 ? glesVersionParts[1] : '0'
+    args glesVersionParts[0], glesVersionParts.length > 1 ? glesVersionParts[1] : '0', textureTestAngleFlip
 }
 
 tasks.named('test') {

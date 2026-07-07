@@ -85,7 +85,7 @@ public class Lwjgl3Graphics extends AbstractGraphics implements Disposable {
                 window.getListener().resize(getWidth(), getHeight());
                 update();
                 window.getListener().render();
-                GLFW.glfwSwapBuffers(windowHandle);
+                Lwjgl3D3D11Application.swapBuffers(windowHandle);
             } else {
                 window.asyncResized = true;
             }
@@ -506,7 +506,11 @@ public class Lwjgl3Graphics extends AbstractGraphics implements Disposable {
     @Override
     public void setVSync (boolean vsync) {
         getWindow().getConfig().vSyncEnabled = vsync;
-        GLFW.glfwSwapInterval(vsync ? 1 : 0);
+        if (AngleEglContext.isManaged(window.getWindowHandle())) {
+            AngleEglContext.setSwapInterval(window.getWindowHandle(), vsync ? 1 : 0);
+        } else {
+            GLFW.glfwSwapInterval(vsync ? 1 : 0);
+        }
     }
 
     /** Sets the target framerate for the application, when using continuous rendering. Must be positive. The cpu sleeps as needed.
@@ -525,6 +529,10 @@ public class Lwjgl3Graphics extends AbstractGraphics implements Disposable {
 
     @Override
     public boolean supportsExtension (String extension) {
+        if (getWindow().getConfig().glEmulation == Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32) {
+            String extensions = gl20.glGetString(GL20.GL_EXTENSIONS);
+            return extensions != null && (" " + extensions + " ").contains(" " + extension + " ");
+        }
         return GLFW.glfwExtensionSupported(extension);
     }
 

@@ -48,7 +48,10 @@ $env:JAVA_HOME='C:\Program Files\Java\jdk-25.0.1'
 .\gradlew.bat runTextureTest
 ```
 
-The test opens a 960x540 window, disables vsync, requests an ANGLE OpenGL ES 2.0 context by default, and displays `src/test/resources/libgdx-logo.png`. Press `Esc` to close it.
+Gradle must run on Java 17 or newer.
+
+The test opens a 960x540 window, uses a decorated non-resizable opaque window by default, disables vsync, requests an ANGLE OpenGL ES 2.0 context by default, and displays `src/test/resources/libgdx-logo.png`. Press `Esc` to close it.
+It also enables a manual EGL HWND surface and explicitly requests ANGLE direct composition for PresentMon flip-model checks.
 
 To probe a higher ANGLE ES context version without editing the Java launcher:
 
@@ -59,3 +62,26 @@ To probe a higher ANGLE ES context version without editing the Java launcher:
 ```
 
 The `GL_VERSION` line printed by the test is the actual context version returned by ANGLE.
+
+To compare with GLFW's regular EGL window surface:
+
+```powershell
+.\gradlew.bat runTextureTest "-PangleFlip=false"
+```
+
+To intentionally compare against less flip-friendly window settings:
+
+```powershell
+.\gradlew.bat runTextureTest "-PtextureTestResizable=true"
+.\gradlew.bat runTextureTest "-PtextureTestDecorated=false"
+.\gradlew.bat runTextureTest "-PtextureTestTransparentFramebuffer=true"
+.\gradlew.bat runTextureTest "-PtextureTestVsync=true"
+```
+
+The application logs the effective window configuration as `Window cfg = ...` and the manual ANGLE surface log now prints `directCompositionQuery=1` when ANGLE accepted the direct composition request for the HWND surface.
+
+For a short smoke test that exits by itself:
+
+```powershell
+.\gradlew.bat runTextureTest "-PautoExitSeconds=2"
+```

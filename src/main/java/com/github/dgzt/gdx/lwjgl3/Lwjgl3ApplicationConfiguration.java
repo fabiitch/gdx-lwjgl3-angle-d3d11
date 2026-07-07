@@ -67,6 +67,8 @@ public class Lwjgl3ApplicationConfiguration extends Lwjgl3WindowConfiguration {
 	int depth = 16, stencil = 0;
 	int samples = 0;
 	boolean transparentFramebuffer;
+	boolean angleManualEglSurface;
+	boolean angleFastPresentPath;
 
 	int idleFPS = 60;
 	int foregroundFPS = 0;
@@ -105,6 +107,8 @@ public class Lwjgl3ApplicationConfiguration extends Lwjgl3WindowConfiguration {
 		stencil = config.stencil;
 		samples = config.samples;
 		transparentFramebuffer = config.transparentFramebuffer;
+		angleManualEglSurface = config.angleManualEglSurface;
+		angleFastPresentPath = config.angleFastPresentPath;
 		idleFPS = config.idleFPS;
 		foregroundFPS = config.foregroundFPS;
 		pauseWhenMinimized = config.pauseWhenMinimized;
@@ -216,6 +220,24 @@ public class Lwjgl3ApplicationConfiguration extends Lwjgl3WindowConfiguration {
 	 * @param transparentFramebuffer */
 	public void setTransparentFramebuffer (boolean transparentFramebuffer) {
 		this.transparentFramebuffer = transparentFramebuffer;
+	}
+
+	/** Enables manual ANGLE EGL HWND surface creation instead of GLFW's EGL surface path.
+	 * This is experimental and intended for PresentMon/DWM flip-path testing on Windows. */
+	public void useAngleManualEglSurface (boolean enabled) {
+		this.angleManualEglSurface = enabled;
+	}
+
+	/** @deprecated Use {@link #useAngleManualEglSurface(boolean)}. */
+	@Deprecated
+	public void useAngleDirectComposition (boolean enabled) {
+		useAngleManualEglSurface(enabled);
+	}
+
+	/** Requests EGL_ANGLE_experimental_present_path FAST when manual ANGLE EGL surface creation is enabled.
+	 * This is experimental and may be ignored or rejected by some ANGLE builds. */
+	public void useAngleFastPresentPath (boolean enabled) {
+		this.angleFastPresentPath = enabled;
 	}
 
 	/** Sets the polling rate during idle time in non-continuous rendering mode. Must be positive. Default is 60. */
