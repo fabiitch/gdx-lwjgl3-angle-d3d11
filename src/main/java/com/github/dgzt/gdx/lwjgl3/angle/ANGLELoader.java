@@ -1,0 +1,225 @@
+/*******************************************************************************
+ * Copyright 2011 See AUTHORS file.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ ******************************************************************************/
+
+package com.github.dgzt.gdx.lwjgl3.angle;
+
+import com.badlogic.gdx.utils.GdxRuntimeException;
+import org.lwjgl.egl.EGL;
+import org.lwjgl.glfw.GLFWNativeEGL;
+import org.lwjgl.opengles.GLES;
+import org.lwjgl.system.Configuration;
+
+import java.io.*;
+import java.lang.reflect.Method;
+import java.util.Random;
+import java.util.UUID;
+import java.util.zip.CRC32;
+
+public class ANGLELoader {
+    private static final String D3D_COMPILER_LIB_NAME = "d3dcompiler_47";
+    private static final String EGL_LIB_NAME = "EGL";
+    private static final String GLES_LIB_NAME = "GLESv2";
+
+    static public boolean isWindows = System.getProperty("os.name").contains("Windows");
+    static public boolean is64Bit = System.getProperty("os.arch").contains("64")
+            || System.getProperty("os.arch").startsWith("armv8");
+
+    static private final Random random = new Random();
+    static private File d3dCompiler;
+    static private File egl;
+    static private File gles;
+    static private boolean loaded;
+
+    public static void closeQuietly (Closeable c) {
+        if (c != null) {
+            try {
+                c.close();
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    static String randomUUID () {
+        return new UUID(random.nextLong(), random.nextLong()).toString();
+    }
+
+    public static String crc (InputStream input) {
+        if (input == null) throw new IllegalArgumentException("input cannot be null.");
+        CRC32 crc = new CRC32();
+        byte[] buffer = new byte[4096];
+        try {
+            while (true) {
+                int length = input.read(buffer);
+                if (length == -1) break;
+                crc.update(buffer, 0, length);
+            }
+        } catch (Exception ex) {
+        } finally {
+            closeQuietly(input);
+        }
+        return Long.toString(crc.getValue(), 16);
+    }
+
+    private static File extractFile (String sourcePath, File outFile) {
+        try {
+            if (!outFile.getParentFile().exists() && !outFile.getParentFile().mkdirs()) throw new GdxRuntimeException(
+                    "Couldn't create ANGLE native library output directory " + outFile.getParentFile().getAbsolutePath());
+            OutputStream out = null;
+            InputStream in = null;
+
+            if (outFile.exists()) {
+                return outFile;
+            }
+
+            try {
+                out = new FileOutputStream(outFile);
+                in = ANGLELoader.class.getResourceAsStream("/" + sourcePath);
+                if (in == null) throw new GdxRuntimeException("Missing ANGLE native resource: " + sourcePath);
+                byte[] buffer = new byte[4096];
+                while (true) {
+                    int length = in.read(buffer);
+                    if (length == -1) break;
+                    out.write(buffer, 0, length);
+                }
+                return outFile;
+            } finally {
+                closeQuietly(out);
+                closeQuietly(in);
+            }
+        } catch (Throwable t) {
+            throw new GdxRuntimeException("Couldn't load ANGLE shared library " + sourcePath, t);
+        }
+    }
+
+    /** Returns a path to a file that can be written. Tries multiple locations and verifies writing succeeds.
+     * @return null if a writable path could not be found. */
+    private static File getExtractedFile (String dirName, String fileName) {
+        // Temp directory with username in path.
+        File idealFile = new File(
+                System.getProperty("java.io.tmpdir") + "/libgdx" + System.getProperty("user.name") + "/" + dirName, fileName);
+        if (canWrite(idealFile)) return idealFile;
+
+        // System provided temp directory.
+        try {
+            File file = File.createTempFile(dirName, null);
+            if (file.delete()) {
+                file = new File(file, fileName);
+                if (canWrite(file)) return file;
+            }
+        } catch (IOException ignored) {
+        }
+
+        // User home.
+        File file = new File(System.getProperty("user.home") + "/.libgdx/" + dirName, fileName);
+        if (canWrite(file)) return file;
+
+        // Relative directory.
+        file = new File(".temp/" + dirName, fileName);
+        if (canWrite(file)) return file;
+
+        // We are running in the OS X sandbox.
+        if (System.getenv("APP_SANDBOX_CONTAINER_ID") != null) return idealFile;
+
+        return null;
+    }
+
+    /** Returns true if the parent directories of the file can be created and the file can be written. */
+    private static boolean canWrite (File file) {
+        File parent = file.getParentFile();
+        File testFile;
+        if (file.exists()) {
+            if (!file.canWrite() || !canExecute(file)) return false;
+            // Don't overwrite existing file just to check if we can write to directory.
+            testFile = new File(parent, randomUUID().toString());
+        } else {
+            parent.mkdirs();
+            if (!parent.isDirectory()) return false;
+            testFile = file;
+        }
+        try {
+            new FileOutputStream(testFile).close();
+            if (!canExecute(testFile)) return false;
+            return true;
+        } catch (Throwable ex) {
+            return false;
+        } finally {
+            testFile.delete();
+        }
+    }
+
+    private static boolean canExecute (File file) {
+        try {
+            Method canExecute = File.class.getMethod("canExecute");
+            if ((Boolean)canExecute.invoke(file)) return true;
+
+            Method setExecutable = File.class.getMethod("setExecutable", boolean.class, boolean.class);
+            setExecutable.invoke(file, true, false);
+
+            return (Boolean)canExecute.invoke(file);
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    private static String resourceCrc (String sourcePath) {
+        InputStream in = ANGLELoader.class.getResourceAsStream("/" + sourcePath);
+        if (in == null) throw new GdxRuntimeException("Missing ANGLE native resource: " + sourcePath);
+        return crc(in);
+    }
+
+    private static File getExtractedFileOrThrow (String dirName, String sourcePath) {
+        File file = getExtractedFile(dirName, new File(sourcePath).getName());
+        if (file == null) throw new GdxRuntimeException("Couldn't find a writable location for ANGLE native library " + sourcePath);
+        return file;
+    }
+
+    public static synchronized void load () {
+        if (loaded) return;
+        if (!is64Bit || !isWindows)
+            throw new GdxRuntimeException("ANGLE D3D11 is only supported on x86_64 Windows.");
+        String osDir = "windows64";
+        String ext = ".dll";
+
+        String d3dCompilerSource = osDir + "/" + D3D_COMPILER_LIB_NAME + ext;
+        String eglSource = osDir + "/lib" + EGL_LIB_NAME + ext;
+        String glesSource = osDir + "/lib" + GLES_LIB_NAME + ext;
+        String crc = resourceCrc(d3dCompilerSource) + resourceCrc(eglSource) + resourceCrc(glesSource);
+        d3dCompiler = getExtractedFileOrThrow(crc, d3dCompilerSource);
+        egl = getExtractedFileOrThrow(crc, eglSource);
+        gles = getExtractedFileOrThrow(crc, glesSource);
+
+        extractFile(d3dCompilerSource, d3dCompiler);
+        extractFile(eglSource, egl);
+        extractFile(glesSource, gles);
+
+        System.load(d3dCompiler.getAbsolutePath());
+
+        if (Configuration.EGL_LIBRARY_NAME.get() == null) {
+            Configuration.EGL_LIBRARY_NAME.set(egl.getAbsolutePath());
+        }
+        if (Configuration.OPENGLES_LIBRARY_NAME.get() == null) {
+            Configuration.OPENGLES_LIBRARY_NAME.set(gles.getAbsolutePath());
+        }
+
+        GLFWNativeEGL.setEGLPath(EGL.getFunctionProvider());
+        GLFWNativeEGL.setGLESPath(GLES.getFunctionProvider());
+        loaded = true;
+    }
+
+    public static void postGlfwInit () {
+        // Kept for compatibility with the application bootstrap sequence.
+    }
+}

@@ -1,0 +1,104 @@
+plugins {
+    id 'java-library'
+}
+
+def projectName = 'gdx-lwjgl3-angle-d3d11'
+def gdxVersionValue = providers.gradleProperty('gdxVersion').getOrElse('1.14.2')
+def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').getOrElse('3.3.3')
+def textureTestGlesVersion = providers.gradleProperty('gles').getOrElse('2.0')
+
+group = 'com.github.dgzt.gdx.lwjgl3'
+version = providers.gradleProperty('VERSION_NAME').getOrElse('1.0.0-SNAPSHOT')
+
+repositories {
+    mavenCentral()
+    google()
+    maven { url = uri('https://oss.sonatype.org/content/repositories/snapshots/') }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+    withSourcesJar()
+    withJavadocJar()
+}
+
+sourceSets {
+    test {
+        resources.srcDirs += ['src/main/resources']
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    if (JavaVersion.current().isJava9Compatible()) {
+        options.release.set(8)
+    }
+}
+
+tasks.withType(Javadoc).configureEach {
+    options.encoding = 'UTF-8'
+    if (JavaVersion.current().isJava8Compatible()) {
+        options.addStringOption('Xdoclint:none,-missing', '-quiet')
+    }
+}
+
+dependencies {
+    api "com.badlogicgames.gdx:gdx:${gdxVersionValue}"
+    api "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersionValue}"
+
+    implementation "org.lwjgl:lwjgl-egl:${lwjgl3VersionValue}"
+    implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}"
+    implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}:natives-windows"
+
+    testRuntimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersionValue}:natives-desktop"
+}
+
+tasks.register('verifyManualAngleNatives') {
+    def nativeFiles = files(
+            'src/main/resources/windows64/d3dcompiler_47.dll',
+            'src/main/resources/windows64/libEGL.dll',
+            'src/main/resources/windows64/libGLESv2.dll'
+    )
+    inputs.files(nativeFiles)
+
+    doLast {
+        def missing = nativeFiles.files.findAll { !it.isFile() }
+        if (!missing.isEmpty()) {
+            throw new GradleException("Missing manual ANGLE D3D11 native files: ${missing*.path.join(', ')}")
+        }
+    }
+}
+
+tasks.named('processResources') {
+    dependsOn tasks.named('verifyManualAngleNatives')
+}
+
+tasks.named('compileTestJava') {
+    source sourceSets.main.java
+}
+
+tasks.register('runTextureTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs a small ANGLE D3D11 texture display for PresentMon/manual checks.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.github.dgzt.gdx.lwjgl3.test.TextureDisplayTest'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    def glesVersionParts = textureTestGlesVersion.split('\\.', 2)
+    args glesVersionParts[0], glesVersionParts.length > 1 ? glesVersionParts[1] : '0'
+}
+
+tasks.named('test') {
+    failOnNoDiscoveredTests = false
+}
+
+jar {
+    archiveBaseName.set(projectName)
+    manifest {
+        attributes(
+                'Implementation-Title': projectName,
+                'Implementation-Version': archiveVersion
+        )
+    }
+}
