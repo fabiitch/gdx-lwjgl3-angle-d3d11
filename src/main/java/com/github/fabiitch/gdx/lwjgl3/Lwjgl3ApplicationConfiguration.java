@@ -18,6 +18,7 @@ package com.github.fabiitch.gdx.lwjgl3;
 
 import java.io.PrintStream;
 import java.nio.IntBuffer;
+import java.util.function.LongConsumer;
 
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.LifecycleListener;
@@ -68,6 +69,8 @@ public class Lwjgl3ApplicationConfiguration extends Lwjgl3WindowConfiguration {
 	boolean transparentFramebuffer;
 	boolean angleManualEglSurface;
 	boolean angleFastPresentPath;
+	boolean angleDirectCompositionSurface = true;
+	LongConsumer preAngleSurfaceWindowHandleListener;
 
 	int idleFPS = 60;
 	int foregroundFPS = 0;
@@ -135,6 +138,8 @@ public class Lwjgl3ApplicationConfiguration extends Lwjgl3WindowConfiguration {
 		transparentFramebuffer = config.transparentFramebuffer;
 		angleManualEglSurface = config.angleManualEglSurface;
 		angleFastPresentPath = config.angleFastPresentPath;
+		angleDirectCompositionSurface = config.angleDirectCompositionSurface;
+		preAngleSurfaceWindowHandleListener = config.preAngleSurfaceWindowHandleListener;
 		idleFPS = config.idleFPS;
 		foregroundFPS = config.foregroundFPS;
 		pauseWhenMinimized = config.pauseWhenMinimized;
@@ -264,6 +269,18 @@ public class Lwjgl3ApplicationConfiguration extends Lwjgl3WindowConfiguration {
 	 * This is experimental and may be ignored or rejected by some ANGLE builds. */
 	public void useAngleFastPresentPath (boolean enabled) {
 		this.angleFastPresentPath = enabled;
+	}
+
+	/** Requests EGL_DIRECT_COMPOSITION_ANGLE when manual ANGLE EGL HWND surface creation is enabled.
+	 * Disable this to test whether ANGLE can use a regular HWND presentation path that may be eligible for Independent Flip. */
+	public void useAngleDirectCompositionSurface (boolean enabled) {
+		this.angleDirectCompositionSurface = enabled;
+	}
+
+	/** Called after GLFW has created and positioned the window, but before ANGLE creates its EGL HWND surface.
+	 * The callback receives the GLFW window handle. This is intended for low-level Win32 style experiments. */
+	public void setPreAngleSurfaceWindowHandleListener (LongConsumer listener) {
+		this.preAngleSurfaceWindowHandleListener = listener;
 	}
 
 	/** Sets the polling rate during idle time in non-continuous rendering mode. Must be positive. Default is 60. */

@@ -13,6 +13,15 @@ def textureTestDecorated = providers.gradleProperty('textureTestDecorated').getO
 def textureTestTransparentFramebuffer = providers.gradleProperty('textureTestTransparentFramebuffer').getOrElse('false')
 def textureTestVsync = providers.gradleProperty('textureTestVsync').getOrElse('false')
 def textureTestForegroundFps = providers.gradleProperty('textureTestForegroundFps').getOrElse('0')
+def textureTestAngleManual = providers.gradleProperty('textureTestAngleManual').getOrElse('true')
+def textureTestAngleFast = providers.gradleProperty('textureTestAngleFast').getOrElse('true')
+def textureTestMpoAngleFast = providers.gradleProperty('textureTestMpoAngleFast').getOrElse('true')
+def textureTestIndependentAngleFast = providers.gradleProperty('textureTestIndependentAngleFast').getOrElse('false')
+def textureTestAngleDirectComposition = providers.gradleProperty('textureTestAngleDirectComposition').getOrElse('false')
+def textureTestMpoAngleDirectComposition = providers.gradleProperty('textureTestMpoAngleDirectComposition').getOrElse('true')
+def textureTestTopmost = providers.gradleProperty('textureTestTopmost').getOrElse('false')
+def textureTestNoRedirectionBitmap = providers.gradleProperty('textureTestNoRedirectionBitmap').getOrElse('false')
+def junitVersion = providers.gradleProperty('junitVersion').getOrElse('5.10.0')
 
 group = 'com.github.dgzt.gdx.lwjgl3'
 version = providers.gradleProperty('VERSION_NAME').getOrElse('1.0.0-SNAPSHOT')
@@ -24,29 +33,14 @@ repositories {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-    withSourcesJar()
-    withJavadocJar()
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
 }
 
 sourceSets {
     test {
         resources.srcDirs += ['src/main/resources']
-    }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    if (JavaVersion.current().isJava9Compatible()) {
-        options.release.set(8)
-    }
-}
-
-tasks.withType(Javadoc).configureEach {
-    options.encoding = 'UTF-8'
-    if (JavaVersion.current().isJava8Compatible()) {
-        options.addStringOption('Xdoclint:none,-missing', '-quiet')
     }
 }
 
@@ -59,6 +53,11 @@ dependencies {
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}:natives-windows"
 
     testRuntimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersionValue}:natives-desktop"
+
+    testImplementation project(':JnaWinTools')
+    testImplementation "net.java.dev.jna:jna-platform:5.18.1"
+    testImplementation platform("org.junit:junit-bom:$junitVersion")
+    testImplementation "org.junit.jupiter:junit-jupiter"
 }
 
 tasks.register('verifyManualAngleNatives') {
@@ -102,6 +101,66 @@ tasks.register('runTextureTest', JavaExec) {
     jvmArgs "-DtextureTest.foregroundFps=${textureTestForegroundFps}"
     def glesVersionParts = textureTestGlesVersion.split('\\.', 2)
     args glesVersionParts[0], glesVersionParts.length > 1 ? glesVersionParts[1] : '0', textureTestAngleFlip
+}
+
+tasks.register('runTextureTestClassic', JavaExec) {
+    group = 'verification'
+    description = 'Runs the same texture display test with classic libGDX LWJGL3 backend APIs.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayClassicTest'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    if (!textureTestAutoExitSeconds.isEmpty()) {
+        jvmArgs "-DtextureTest.autoExitSeconds=${textureTestAutoExitSeconds}"
+    }
+    jvmArgs "-DtextureTest.resizable=${textureTestResizable}"
+    jvmArgs "-DtextureTest.decorated=${textureTestDecorated}"
+    jvmArgs "-DtextureTest.transparentFramebuffer=${textureTestTransparentFramebuffer}"
+    jvmArgs "-DtextureTest.vsync=${textureTestVsync}"
+    jvmArgs "-DtextureTest.foregroundFps=${textureTestForegroundFps}"
+    def glesVersionParts = textureTestGlesVersion.split('\\.', 2)
+    args glesVersionParts[0], glesVersionParts.length > 1 ? glesVersionParts[1] : '0'
+}
+
+tasks.register('runTextureD3D11ComposedFlip', JavaExec) {
+    group = 'verification'
+    description = 'Runs borderless full-screen window using D3D11 composed-flip oriented profile.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11ComposedFlipLauncher'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    jvmArgs '-DtextureTest.transparent=true'
+    jvmArgs "-DtextureTest.vsync=${textureTestVsync}"
+    jvmArgs "-DtextureTest.angleManual=${textureTestAngleManual}"
+    jvmArgs "-DtextureTest.angleFast=${textureTestAngleFast}"
+}
+
+tasks.register('runTextureD3D11MpoCandidate', JavaExec) {
+    group = 'verification'
+    description = 'Runs borderless full-screen window with Independent Flip/MPO-candidate swapchain defaults.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11MpoCandidateLauncher'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    jvmArgs '-DtextureTest.vsync=true'
+    jvmArgs "-DtextureTest.angleManual=${textureTestAngleManual}"
+    jvmArgs "-DtextureTest.angleFast=${textureTestMpoAngleFast}"
+    jvmArgs "-DtextureTest.angleDirectComposition=${textureTestMpoAngleDirectComposition}"
+}
+
+tasks.register('runTextureD3D11IndependentFlipCandidate', JavaExec) {
+    group = 'verification'
+    description = 'Runs borderless full-screen window with Win32 WS_POPUP tweaks for Independent Flip/MPO tests.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11IndependentFlipCandidateLauncher'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    jvmArgs '-DtextureTest.vsync=true'
+    jvmArgs "-DtextureTest.angleManual=${textureTestAngleManual}"
+    jvmArgs "-DtextureTest.angleFast=${textureTestIndependentAngleFast}"
+    jvmArgs "-DtextureTest.angleDirectComposition=${textureTestAngleDirectComposition}"
+    jvmArgs "-DtextureTest.topmost=${textureTestTopmost}"
+    jvmArgs "-DtextureTest.noRedirectionBitmap=${textureTestNoRedirectionBitmap}"
 }
 
 tasks.named('test') {

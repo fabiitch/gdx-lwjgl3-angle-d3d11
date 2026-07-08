@@ -556,6 +556,9 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
         if (config.windowIconPaths != null) {
             Lwjgl3Window.setIcon(windowHandle, config.windowIconPaths, config.windowIconFileType);
         }
+        if (manualAngleSurface && config.preAngleSurfaceWindowHandleListener != null) {
+            config.preAngleSurfaceWindowHandleListener.accept(windowHandle);
+        }
         if (manualAngleSurface) {
             AngleEglContext.create(windowHandle, sharedContextWindow, config);
         } else {

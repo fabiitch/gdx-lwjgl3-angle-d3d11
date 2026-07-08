@@ -96,6 +96,7 @@ final class AngleEglContext {
             int directCompositionSurface = querySurfaceInt(surface, EGL_DIRECT_COMPOSITION_ANGLE, -1);
             System.out.println("[ANGLE-D3D11] EGL manual surface = HWND"
                     + (fastPresentDisplay ? " fastPresentPath" : "")
+                    + " directCompositionRequest=" + config.angleDirectCompositionSurface
                     + " directCompositionQuery=" + directCompositionSurface);
             System.out.println("[ANGLE-D3D11] EGL extensions: directComposition="
                     + hasExtension("EGL_ANGLE_direct_composition") + ", experimentalPresentPath="
@@ -190,7 +191,8 @@ final class AngleEglContext {
     private static long createWindowSurface (long hwnd, Lwjgl3ApplicationConfiguration config, boolean withSwapInterval,
                                              boolean requestDirectComposition) {
         try (MemoryStack stack = stackPush()) {
-            boolean canRequestDirectComposition = requestDirectComposition && hasExtension("EGL_ANGLE_direct_composition");
+            boolean canRequestDirectComposition = config.angleDirectCompositionSurface && requestDirectComposition
+                    && hasExtension("EGL_ANGLE_direct_composition");
             IntBuffer surfaceAttribs;
             if (withSwapInterval && canRequestDirectComposition) {
                 surfaceAttribs = stack.ints(

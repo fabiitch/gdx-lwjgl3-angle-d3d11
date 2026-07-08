@@ -88,3 +88,20 @@ For a short smoke test that exits by itself:
 ```powershell
 .\gradlew.bat runTextureTest "-PautoExitSeconds=2"
 ```
+
+## Texture test (classic LWJGL3 backend)
+
+To run the same visual texture test using libGDX classic LWJGL3 API/backend classes (`com.badlogic.gdx.backends.lwjgl3.*`):
+
+```powershell
+.\gradlew.bat runTextureTestClassic
+```
+
+You can also request another emulation profile in the same way:
+
+```powershell
+.\gradlew.bat runTextureTestClassic "-Pgles=3.0"
+.\gradlew.bat runTextureTestClassic "-Pgles=3.1"
+.\gradlew.bat runTextureTestClassic "-Pgles=3.2"
+```
+
