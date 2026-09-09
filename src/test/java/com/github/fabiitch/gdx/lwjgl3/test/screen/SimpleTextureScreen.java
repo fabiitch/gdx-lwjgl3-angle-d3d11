@@ -1,4 +1,4 @@
-package com.github.fabiitch.gdx.lwjgl3.test;
+package com.github.fabiitch.gdx.lwjgl3.test.screen;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
@@ -7,12 +7,20 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.github.fabiitch.gdx.lwjgl3.Lwjgl3Graphics;
+import com.github.fabiitch.gdx.lwjgl3.test.config.TextureDisplayDiagnostics;
+import com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayLaunchProfile;
 
 public class SimpleTextureScreen extends ApplicationAdapter {
     private static final String TEXTURE_PATH = "libgdx-logo.png";
 
+    private final TextureDisplayLaunchProfile profile;
     private SpriteBatch batch;
     private Texture texture;
+
+    public SimpleTextureScreen (TextureDisplayLaunchProfile profile) {
+        this.profile = profile;
+    }
 
     @Override
     public void create () {
@@ -20,12 +28,8 @@ public class SimpleTextureScreen extends ApplicationAdapter {
         texture = new Texture(Gdx.files.internal(TEXTURE_PATH), true);
         texture.setFilter(TextureFilter.MipMapLinearLinear, TextureFilter.Linear);
 
-        Gdx.app.log("SimpleTextureScreen",
-                "GL_VENDOR   = " + Gdx.gl.glGetString(GL20.GL_VENDOR));
-        Gdx.app.log("SimpleTextureScreen",
-                "GL_RENDERER = " + Gdx.gl.glGetString(GL20.GL_RENDERER));
-        Gdx.app.log("SimpleTextureScreen",
-                "GL_VERSION  = " + Gdx.gl.glGetString(GL20.GL_VERSION));
+        long glfwHandle = ((Lwjgl3Graphics) Gdx.graphics).getWindow().getWindowHandle();
+        TextureDisplayDiagnostics.logD3D11Runtime("SimpleTextureScreen", glfwHandle, profile);
     }
 
     @Override

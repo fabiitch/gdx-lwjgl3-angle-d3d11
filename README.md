@@ -1,107 +1,37 @@
-# ANGLE D3D11 backend for libGDX
-
-Based from https://github.com/Dgzt/gdx-lwjgl3-angle-vulkan 
-
-
-LWJGL3/libGDX backend that creates an OpenGL ES context through Google ANGLE and requests the D3D11 renderer on Windows.
-
-## Supported operating systems
-
-| Operating system | Supported? |
-|------------------|------------|
-| Windows x64      | Yes        |
-| Linux x64        | No         |
-| macOS            | No         |
-
-## Manual native packaging
-
-The ANGLE D3D11 DLLs are packaged directly from:
-
+﻿# ANGLE D3D11 backend for libGDX
+LWJGL3/libGDX backend that creates an OpenGL ES context through Google ANGLE and requests D3D11 on Windows x64.
+## Native DLLs
+The required DLLs are stored in `libs/`:
 ```text
-src/main/resources/windows64/d3dcompiler_47.dll
-src/main/resources/windows64/libEGL.dll
-src/main/resources/windows64/libGLESv2.dll
+libs/d3dcompiler_47.dll
+libs/glfw3.dll
+libs/libEGL.dll
+libs/libGLESv2.dll
 ```
-
-There is no Gradle download task. `processResources` checks that these files exist before building the JAR.
-
+They are packaged in the JAR under `windows64/`. At runtime, set the JVM property `gdx.lwjgl3.angle.nativesDir` to load all four DLLs directly from another directory; without it, the backend extracts the DLLs embedded in the JAR.
+```powershell
+java -Dgdx.lwjgl3.angle.nativesDir="C:\path\to\dlls" ...
+```
+The directory must contain all four files listed above. The custom `glfw3.dll` is required because it provides `GLFW_ANGLE_SURFACE_DIRECT_COMPOSITION` (`0x00050004`, GLFW PR #2889).
 ## Usage
-
-Add the dependency to a LWJGL3 libGDX project, then use `Lwjgl3D3D11Application` in the desktop launcher:
-
 ```java
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3D3D11Application;
-
-public class Lwjgl3Launcher {
-    public static void main(String[] args) {
+public final class DesktopLauncher {
+    public static void main (String[] args) {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
-        config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32, 2, 0);
+        config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32, 3, 0);
         new Lwjgl3D3D11Application(new YourGame(), config);
     }
 }
 ```
-
-## Texture test
-
-For a quick PresentMon check, run:
-
+## Overlay flip-model test
+The Gradle launchers automatically set `gdx.lwjgl3.angle.nativesDir` to the project `libs/` directory, so local DLL changes are used immediately:
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Java\jdk-25.0.1'
-.\gradlew.bat runTextureTest
+.\gradlew.bat runTextureD3D11Overlay
 ```
-
-Gradle must run on Java 17 or newer.
-
-The test opens a 960x540 window, uses a decorated non-resizable opaque window by default, disables vsync, requests an ANGLE OpenGL ES 2.0 context by default, and displays `src/test/resources/libgdx-logo.png`. Press `Esc` to close it.
-It also enables a manual EGL HWND surface and explicitly requests ANGLE direct composition for PresentMon flip-model checks.
-
-To probe a higher ANGLE ES context version without editing the Java launcher:
-
+This profile uses a transparent, borderless, non-resizable full-screen window with an alpha swapchain, manual ANGLE EGL HWND surface, DirectComposition and the GLFW direct-composition hint. It avoids `WS_EX_LAYERED`.
+For a non-overlay comparison profile that deliberately avoids DirectComposition:
 ```powershell
-.\gradlew.bat runTextureTest "-Pgles=3.0"
-.\gradlew.bat runTextureTest "-Pgles=3.1"
-.\gradlew.bat runTextureTest "-Pgles=3.2"
+.\gradlew.bat runTextureD3D11IndependentFlipCandidate
 ```
-
-The `GL_VERSION` line printed by the test is the actual context version returned by ANGLE.
-
-To compare with GLFW's regular EGL window surface:
-
-```powershell
-.\gradlew.bat runTextureTest "-PangleFlip=false"
-```
-
-To intentionally compare against less flip-friendly window settings:
-
-```powershell
-.\gradlew.bat runTextureTest "-PtextureTestResizable=true"
-.\gradlew.bat runTextureTest "-PtextureTestDecorated=false"
-.\gradlew.bat runTextureTest "-PtextureTestTransparentFramebuffer=true"
-.\gradlew.bat runTextureTest "-PtextureTestVsync=true"
-```
-
-The application logs the effective window configuration as `Window cfg = ...` and the manual ANGLE surface log now prints `directCompositionQuery=1` when ANGLE accepted the direct composition request for the HWND surface.
-
-For a short smoke test that exits by itself:
-
-```powershell
-.\gradlew.bat runTextureTest "-PautoExitSeconds=2"
-```
-
-## Texture test (classic LWJGL3 backend)
-
-To run the same visual texture test using libGDX classic LWJGL3 API/backend classes (`com.badlogic.gdx.backends.lwjgl3.*`):
-
-```powershell
-.\gradlew.bat runTextureTestClassic
-```
-
-You can also request another emulation profile in the same way:
-
-```powershell
-.\gradlew.bat runTextureTestClassic "-Pgles=3.0"
-.\gradlew.bat runTextureTestClassic "-Pgles=3.1"
-.\gradlew.bat runTextureTestClassic "-Pgles=3.2"
-```
-
