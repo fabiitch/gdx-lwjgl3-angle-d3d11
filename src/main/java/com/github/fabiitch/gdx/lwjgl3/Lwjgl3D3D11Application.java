@@ -79,9 +79,12 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
     private static GLVersion glVersion;
     private static Callback glDebugCallback;
     private final Sync sync;
+    /** Custom GLFW hint provided by the bundled GLFW build (GLFW PR #2889). */
+    private static final int GLFW_ANGLE_SURFACE_DIRECT_COMPOSITION = 0x00050004;
 
     static void initializeGlfw () {
         if (errorCallback == null) {
+            if (SharedLibraryLoader.os == Os.Windows) loadANGLE();
             Lwjgl3NativesLoader.load();
             errorCallback = GLFWErrorCallback.createPrint(Lwjgl3ApplicationConfiguration.errorStream);
             GLFW.glfwSetErrorCallback(errorCallback);
@@ -493,6 +496,9 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
             }
         } else {
             if (config.glEmulation == Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32) {
+                if (SharedLibraryLoader.os == Os.Windows && config.angleDirectCompositionSurface) {
+                    GLFW.glfwWindowHint(GLFW_ANGLE_SURFACE_DIRECT_COMPOSITION, GLFW.GLFW_TRUE);
+                }
                 if (manualAngleSurface) {
                     GLFW.glfwWindowHint(GLFW.GLFW_CLIENT_API, GLFW.GLFW_NO_API);
                 } else {

@@ -5,25 +5,9 @@ plugins {
 def projectName = 'gdx-lwjgl3-angle-d3d11'
 def gdxVersionValue = providers.gradleProperty('gdxVersion').getOrElse('1.14.2')
 def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').getOrElse('3.3.3')
-def textureTestGlesVersion = providers.gradleProperty('gles').getOrElse('2.0')
-def textureTestAngleFlip = providers.gradleProperty('angleFlip').getOrElse('true')
-def textureTestAutoExitSeconds = providers.gradleProperty('autoExitSeconds').getOrElse('')
-def textureTestResizable = providers.gradleProperty('textureTestResizable').getOrElse('false')
-def textureTestDecorated = providers.gradleProperty('textureTestDecorated').getOrElse('true')
-def textureTestTransparentFramebuffer = providers.gradleProperty('textureTestTransparentFramebuffer').getOrElse('false')
-def textureTestVsync = providers.gradleProperty('textureTestVsync').getOrElse('false')
-def textureTestForegroundFps = providers.gradleProperty('textureTestForegroundFps').getOrElse('0')
-def textureTestAngleManual = providers.gradleProperty('textureTestAngleManual').getOrElse('true')
-def textureTestAngleFast = providers.gradleProperty('textureTestAngleFast').getOrElse('true')
-def textureTestMpoAngleFast = providers.gradleProperty('textureTestMpoAngleFast').getOrElse('true')
-def textureTestIndependentAngleFast = providers.gradleProperty('textureTestIndependentAngleFast').getOrElse('false')
-def textureTestAngleDirectComposition = providers.gradleProperty('textureTestAngleDirectComposition').getOrElse('false')
-def textureTestMpoAngleDirectComposition = providers.gradleProperty('textureTestMpoAngleDirectComposition').getOrElse('true')
-def textureTestTopmost = providers.gradleProperty('textureTestTopmost').getOrElse('false')
-def textureTestNoRedirectionBitmap = providers.gradleProperty('textureTestNoRedirectionBitmap').getOrElse('false')
 def junitVersion = providers.gradleProperty('junitVersion').getOrElse('5.10.0')
 
-group = 'com.github.dgzt.gdx.lwjgl3'
+group = 'com.github.fabiitch.gdx.lwjgl3'
 version = providers.gradleProperty('VERSION_NAME').getOrElse('1.0.0-SNAPSHOT')
 
 repositories {
@@ -48,6 +32,7 @@ dependencies {
     api "com.badlogicgames.gdx:gdx:${gdxVersionValue}"
     api "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersionValue}"
 
+    implementation "net.java.dev.jna:jna:5.18.1"
     implementation "org.lwjgl:lwjgl-egl:${lwjgl3VersionValue}"
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}"
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}:natives-windows"
@@ -62,9 +47,10 @@ dependencies {
 
 tasks.register('verifyManualAngleNatives') {
     def nativeFiles = files(
-            'src/main/resources/windows64/d3dcompiler_47.dll',
-            'src/main/resources/windows64/libEGL.dll',
-            'src/main/resources/windows64/libGLESv2.dll'
+            'libs/d3dcompiler_47.dll',
+            'libs/glfw3.dll',
+            'libs/libEGL.dll',
+            'libs/libGLESv2.dll'
     )
     inputs.files(nativeFiles)
 
@@ -78,75 +64,17 @@ tasks.register('verifyManualAngleNatives') {
 
 tasks.named('processResources') {
     dependsOn tasks.named('verifyManualAngleNatives')
+    exclude 'windows64/d3dcompiler_47.dll', 'windows64/glfw3.dll', 'windows64/libEGL.dll', 'windows64/libGLESv2.dll'
+    from('libs') {
+        include 'd3dcompiler_47.dll', 'glfw3.dll', 'libEGL.dll', 'libGLESv2.dll'
+        into 'windows64'
+    }
 }
 
 tasks.named('compileTestJava') {
     source sourceSets.main.java
 }
 
-tasks.register('runTextureTest', JavaExec) {
-    group = 'verification'
-    description = 'Runs a small ANGLE D3D11 texture display for PresentMon/manual checks.'
-    dependsOn tasks.named('testClasses')
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.github.dgzt.gdx.lwjgl3.test.TextureDisplayTest'
-    jvmArgs '--enable-native-access=ALL-UNNAMED'
-    if (!textureTestAutoExitSeconds.isEmpty()) {
-        jvmArgs "-DtextureTest.autoExitSeconds=${textureTestAutoExitSeconds}"
-    }
-    jvmArgs "-DtextureTest.resizable=${textureTestResizable}"
-    jvmArgs "-DtextureTest.decorated=${textureTestDecorated}"
-    jvmArgs "-DtextureTest.transparentFramebuffer=${textureTestTransparentFramebuffer}"
-    jvmArgs "-DtextureTest.vsync=${textureTestVsync}"
-    jvmArgs "-DtextureTest.foregroundFps=${textureTestForegroundFps}"
-    def glesVersionParts = textureTestGlesVersion.split('\\.', 2)
-    args glesVersionParts[0], glesVersionParts.length > 1 ? glesVersionParts[1] : '0', textureTestAngleFlip
-}
-
-tasks.register('runTextureTestClassic', JavaExec) {
-    group = 'verification'
-    description = 'Runs the same texture display test with classic libGDX LWJGL3 backend APIs.'
-    dependsOn tasks.named('testClasses')
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayClassicTest'
-    jvmArgs '--enable-native-access=ALL-UNNAMED'
-    if (!textureTestAutoExitSeconds.isEmpty()) {
-        jvmArgs "-DtextureTest.autoExitSeconds=${textureTestAutoExitSeconds}"
-    }
-    jvmArgs "-DtextureTest.resizable=${textureTestResizable}"
-    jvmArgs "-DtextureTest.decorated=${textureTestDecorated}"
-    jvmArgs "-DtextureTest.transparentFramebuffer=${textureTestTransparentFramebuffer}"
-    jvmArgs "-DtextureTest.vsync=${textureTestVsync}"
-    jvmArgs "-DtextureTest.foregroundFps=${textureTestForegroundFps}"
-    def glesVersionParts = textureTestGlesVersion.split('\\.', 2)
-    args glesVersionParts[0], glesVersionParts.length > 1 ? glesVersionParts[1] : '0'
-}
-
-tasks.register('runTextureD3D11ComposedFlip', JavaExec) {
-    group = 'verification'
-    description = 'Runs borderless full-screen window using D3D11 composed-flip oriented profile.'
-    dependsOn tasks.named('testClasses')
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11ComposedFlipLauncher'
-    jvmArgs '--enable-native-access=ALL-UNNAMED'
-    jvmArgs '-DtextureTest.transparent=true'
-    jvmArgs "-DtextureTest.vsync=${textureTestVsync}"
-    jvmArgs "-DtextureTest.angleManual=${textureTestAngleManual}"
-    jvmArgs "-DtextureTest.angleFast=${textureTestAngleFast}"
-}
-
-tasks.register('runTextureD3D11MpoCandidate', JavaExec) {
-    group = 'verification'
-    description = 'Runs borderless full-screen window with Independent Flip/MPO-candidate swapchain defaults.'
-    dependsOn tasks.named('testClasses')
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11MpoCandidateLauncher'
-    jvmArgs '--enable-native-access=ALL-UNNAMED'
-    jvmArgs '-DtextureTest.vsync=true'
-    jvmArgs "-DtextureTest.angleManual=${textureTestAngleManual}"
-    jvmArgs "-DtextureTest.angleFast=${textureTestMpoAngleFast}"
-    jvmArgs "-DtextureTest.angleDirectComposition=${textureTestMpoAngleDirectComposition}"
-}
 
 tasks.register('runTextureD3D11IndependentFlipCandidate', JavaExec) {
     group = 'verification'
@@ -155,12 +83,17 @@ tasks.register('runTextureD3D11IndependentFlipCandidate', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11IndependentFlipCandidateLauncher'
     jvmArgs '--enable-native-access=ALL-UNNAMED'
-    jvmArgs '-DtextureTest.vsync=true'
-    jvmArgs "-DtextureTest.angleManual=${textureTestAngleManual}"
-    jvmArgs "-DtextureTest.angleFast=${textureTestIndependentAngleFast}"
-    jvmArgs "-DtextureTest.angleDirectComposition=${textureTestAngleDirectComposition}"
-    jvmArgs "-DtextureTest.topmost=${textureTestTopmost}"
-    jvmArgs "-DtextureTest.noRedirectionBitmap=${textureTestNoRedirectionBitmap}"
+    systemProperty 'gdx.lwjgl3.angle.nativesDir', layout.projectDirectory.dir('libs').asFile.absolutePath
+}
+
+tasks.register('runTextureD3D11Overlay', JavaExec) {
+    group = 'verification'
+    description = 'Runs a transparent topmost ANGLE/D3D11 overlay using alpha swapchain/DComp without WS_EX_LAYERED.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11OverlayTest'
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    systemProperty 'gdx.lwjgl3.angle.nativesDir', layout.projectDirectory.dir('libs').asFile.absolutePath
 }
 
 tasks.named('test') {

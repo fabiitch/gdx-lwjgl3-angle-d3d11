@@ -1,12 +1,13 @@
 package com.github.fabiitch.gdx.lwjgl3;
 
 import com.badlogic.gdx.utils.GdxRuntimeException;
+import com.sun.jna.NativeLibrary;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.egl.EGL;
 import org.lwjgl.egl.EGL10;
 import org.lwjgl.egl.EGL11;
 import org.lwjgl.egl.EGL14;
-import org.lwjgl.glfw.GLFWNativeWin32;
+import org.lwjgl.system.Configuration;
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -65,7 +66,7 @@ final class AngleEglContext {
             sharedContext = shared.context;
         }
 
-        long hwnd = GLFWNativeWin32.glfwGetWin32Window(windowHandle);
+        long hwnd = getWin32WindowHandle(windowHandle);
         if (hwnd == MemoryUtil.NULL) throw new GdxRuntimeException("Couldn't get Win32 HWND from GLFW window.");
 
         try (MemoryStack stack = stackPush()) {
@@ -94,13 +95,20 @@ final class AngleEglContext {
             EGL11.eglSwapInterval(display, config.vSyncEnabled ? 1 : 0);
 
             int directCompositionSurface = querySurfaceInt(surface, EGL_DIRECT_COMPOSITION_ANGLE, -1);
+            int surfaceWidth = querySurfaceInt(surface, EGL10.EGL_WIDTH, -1);
+            int surfaceHeight = querySurfaceInt(surface, EGL10.EGL_HEIGHT, -1);
             System.out.println("[ANGLE-D3D11] EGL manual surface = HWND"
                     + (fastPresentDisplay ? " fastPresentPath" : "")
                     + " directCompositionRequest=" + config.angleDirectCompositionSurface
-                    + " directCompositionQuery=" + directCompositionSurface);
+                    + " directCompositionQuery=" + directCompositionSurface
+                    + " surface=" + surfaceWidth + "x" + surfaceHeight);
             System.out.println("[ANGLE-D3D11] EGL extensions: directComposition="
                     + hasExtension("EGL_ANGLE_direct_composition") + ", experimentalPresentPath="
                     + hasExtension("EGL_ANGLE_experimental_present_path"));
+            System.out.println("[ANGLE-D3D11] Swapchain evidence: EGL exposes DirectComposition surface state only; "
+                    + "IDXGISwapChain/DXGI_SWAP_CHAIN_DESC/swapEffect are not exposed by ANGLE EGL.");
+            System.out.println("[ANGLE-D3D11] Swapchain evidence: use PresentMon/ETW or patch ANGLE native swapchain creation "
+                    + "to log CreateSwapChainForHwnd/CreateSwapChainForComposition descriptors.");
         }
     }
 
@@ -110,6 +118,16 @@ final class AngleEglContext {
         } catch (IllegalStateException ignored) {
             EGL.create();
         }
+    }
+
+    private static long getWin32WindowHandle (long windowHandle) {
+        String glfwLibraryPath = Configuration.GLFW_LIBRARY_NAME.get();
+        if (glfwLibraryPath == null || glfwLibraryPath.isBlank()) {
+            throw new GdxRuntimeException("The GLFW library path has not been configured.");
+        }
+        return NativeLibrary.getInstance(glfwLibraryPath)
+                .getFunction("glfwGetWin32Window")
+                .invokeLong(new Object[] {windowHandle});
     }
 
     private static void initializeDisplay (Lwjgl3ApplicationConfiguration config) {
@@ -210,8 +228,25 @@ final class AngleEglContext {
             } else {
                 surfaceAttribs = stack.ints(EGL10.EGL_NONE);
             }
-            return EGL10.eglCreateWindowSurface(display, eglConfig, hwnd, surfaceAttribs);
+            long surface = EGL10.eglCreateWindowSurface(display, eglConfig, hwnd, surfaceAttribs);
+            System.out.println("[ANGLE-D3D11] eglCreateWindowSurface attempt hwnd=0x" + Long.toHexString(hwnd)
+                    + " attrs=" + surfaceAttribSummary(withSwapInterval, canRequestDirectComposition, config.vSyncEnabled)
+                    + " result=" + (surface == EGL10.EGL_NO_SURFACE ? "NO_SURFACE " + eglError() : "0x" + Long.toHexString(surface)));
+            return surface;
         }
+    }
+
+    private static String surfaceAttribSummary (boolean withSwapInterval, boolean requestDirectComposition, boolean vSyncEnabled) {
+        StringBuilder builder = new StringBuilder("[");
+        if (withSwapInterval) {
+            builder.append("EGL_SWAP_INTERVAL_ANGLE=").append(vSyncEnabled ? 1 : 0);
+        }
+        if (requestDirectComposition) {
+            if (builder.length() > 1) builder.append(", ");
+            builder.append("EGL_DIRECT_COMPOSITION_ANGLE=EGL_TRUE");
+        }
+        if (builder.length() == 1) builder.append("none");
+        return builder.append(']').toString();
     }
 
     private static int querySurfaceInt (long surface, int attribute, int fallback) {

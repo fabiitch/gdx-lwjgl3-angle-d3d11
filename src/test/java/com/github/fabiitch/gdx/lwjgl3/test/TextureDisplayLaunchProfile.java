@@ -1,25 +1,29 @@
 package com.github.fabiitch.gdx.lwjgl3.test;
 
+import com.github.fabiitch.gdx.lwjgl3.test.config.Win32WindowMode;
+
 /**
  * Objet intermediaire pour decrire un profil de lancement D3D11.
  */
 public class TextureDisplayLaunchProfile {
-    final String title;
-    final int glesMajor;
-    final int glesMinor;
-    final boolean transparentFramebuffer;
-    final int alphaBits;
-    final boolean vSync;
-    final boolean angleManualEglSurface;
-    final boolean angleFastPresentPath;
-    final boolean angleDirectCompositionSurface;
-    final boolean decorated;
-    final boolean resizable;
-    final boolean maximized;
-    final boolean disableAudio;
-    final Win32WindowMode win32WindowMode;
+    public final String title;
+    public final int glesMajor;
+    public final int glesMinor;
+    public final boolean transparentFramebuffer;
+    public final int alphaBits;
+    public final boolean vSync;
+    public final boolean angleManualEglSurface;
+    public final boolean angleFastPresentPath;
+    public final boolean angleDirectCompositionSurface;
+    public final boolean decorated;
+    public final boolean resizable;
+    public final boolean maximized;
+    public final int foregroundFps;
+    public final boolean disableAudio;
+    public final Win32WindowMode win32WindowMode;
+    public final boolean overlayScreen;
 
-    private TextureDisplayLaunchProfile (Builder builder) {
+    private TextureDisplayLaunchProfile(Builder builder) {
         this.title = builder.title;
         this.glesMajor = builder.glesMajor;
         this.glesMinor = builder.glesMinor;
@@ -32,11 +36,13 @@ public class TextureDisplayLaunchProfile {
         this.decorated = builder.decorated;
         this.resizable = builder.resizable;
         this.maximized = builder.maximized;
+        this.foregroundFps = builder.foregroundFps;
         this.disableAudio = builder.disableAudio;
         this.win32WindowMode = builder.win32WindowMode;
+        this.overlayScreen = builder.overlayScreen;
     }
 
-    static Builder builder (String title) {
+    public static Builder builder(String title) {
         return new Builder(title);
     }
 
@@ -53,76 +59,88 @@ public class TextureDisplayLaunchProfile {
         private boolean decorated = false;
         private boolean resizable = false;
         private boolean maximized = false;
+        private int foregroundFps = 0;
         private boolean disableAudio = true;
         private Win32WindowMode win32WindowMode = Win32WindowMode.NONE;
+        private boolean overlayScreen = false;
 
-        private Builder (String title) {
+        private Builder(String title) {
             this.title = title;
         }
 
 
-        Builder glesVersion (int major, int minor) {
+        public Builder glesVersion(int major, int minor) {
             this.glesMajor = major;
             this.glesMinor = minor;
             return this;
         }
 
-        Builder transparentFramebuffer (boolean transparentFramebuffer) {
+        Builder transparentFramebuffer(boolean transparentFramebuffer) {
             this.transparentFramebuffer = transparentFramebuffer;
             return this;
         }
 
-        Builder alphaBits (int alphaBits) {
+        Builder alphaBits(int alphaBits) {
             this.alphaBits = alphaBits;
             return this;
         }
 
-        Builder vSync (boolean vSync) {
+        Builder vSync(boolean vSync) {
             this.vSync = vSync;
             return this;
         }
 
-        Builder angleManualEglSurface (boolean angleManualEglSurface) {
+        Builder angleManualEglSurface(boolean angleManualEglSurface) {
             this.angleManualEglSurface = angleManualEglSurface;
             return this;
         }
 
-        Builder angleFastPresentPath (boolean angleFastPresentPath) {
+        Builder angleFastPresentPath(boolean angleFastPresentPath) {
             this.angleFastPresentPath = angleFastPresentPath;
             return this;
         }
 
-        Builder angleDirectCompositionSurface (boolean angleDirectCompositionSurface) {
+        Builder angleDirectCompositionSurface(boolean angleDirectCompositionSurface) {
             this.angleDirectCompositionSurface = angleDirectCompositionSurface;
             return this;
         }
 
-        Builder decorated (boolean decorated) {
+        Builder decorated(boolean decorated) {
             this.decorated = decorated;
             return this;
         }
 
-        Builder resizable (boolean resizable) {
+        Builder resizable(boolean resizable) {
             this.resizable = resizable;
             return this;
         }
 
-        Builder maximized (boolean maximized) {
+        Builder maximized(boolean maximized) {
             this.maximized = maximized;
             return this;
         }
 
-        Builder disableAudio (boolean disableAudio) {
+        Builder foregroundFps(int foregroundFps) {
+            this.foregroundFps = foregroundFps;
+            return this;
+        }
+
+        Builder disableAudio(boolean disableAudio) {
             this.disableAudio = disableAudio;
             return this;
         }
 
-        Builder win32WindowMode (Win32WindowMode win32WindowMode) {
+        Builder win32WindowMode(Win32WindowMode win32WindowMode) {
             this.win32WindowMode = win32WindowMode;
             return this;
         }
 
-        TextureDisplayLaunchProfile build () {
+        Builder overlayScreen(boolean overlayScreen) {
+            this.overlayScreen = overlayScreen;
+            return this;
+        }
+
+        TextureDisplayLaunchProfile build() {
             return new TextureDisplayLaunchProfile(this);
         }
     }
