@@ -1,9 +1,9 @@
-package com.github.fabiitch.gdx.lwjgl3.test;
+package com.github.fabiitch.gdx.lwjgl3.test.config;
 
 /**
  * Presets Win32 appliques apres creation GLFW pour tester les chemins PresentMon.
  */
-enum Win32WindowMode {
+public enum Win32WindowMode {
     /** Ne touche pas aux styles Win32 apres creation. */
     NONE,
 
@@ -20,6 +20,9 @@ enum Win32WindowMode {
     POPUP_FULLSCREEN_NO_REDIRECTION,
 
     /** Variante agressive: WS_POPUP plein ecran + topmost + WS_EX_NOREDIRECTIONBITMAP. */
-    POPUP_FULLSCREEN_TOPMOST_NO_REDIRECTION
+    POPUP_FULLSCREEN_TOPMOST_NO_REDIRECTION,
+
+    /** Overlay transparent topmost et click-through, sans WS_EX_NOREDIRECTIONBITMAP. */
+    OVERLAY_TOPMOST_CLICK_THROUGH
 }
 

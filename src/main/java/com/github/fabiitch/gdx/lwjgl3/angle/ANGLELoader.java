@@ -32,6 +32,9 @@ public class ANGLELoader {
     private static final String D3D_COMPILER_LIB_NAME = "d3dcompiler_47";
     private static final String EGL_LIB_NAME = "EGL";
     private static final String GLES_LIB_NAME = "GLESv2";
+    private static final String GLFW_LIB_NAME = "glfw3";
+    /** JVM property whose value is the directory containing the four Windows native DLLs. */
+    public static final String NATIVES_DIR_PROPERTY = "gdx.lwjgl3.angle.nativesDir";
 
     static public boolean isWindows = System.getProperty("os.name").contains("Windows");
     static public boolean is64Bit = System.getProperty("os.arch").contains("64")
@@ -41,6 +44,7 @@ public class ANGLELoader {
     static private File d3dCompiler;
     static private File egl;
     static private File gles;
+    static private File glfw;
     static private boolean loaded;
 
     public static void closeQuietly (Closeable c) {
@@ -186,27 +190,59 @@ public class ANGLELoader {
         return file;
     }
 
+    private static File getConfiguredNativesDirectory () {
+        String path = System.getProperty(NATIVES_DIR_PROPERTY);
+        if (path == null || path.trim().isEmpty()) return null;
+
+        File directory = new File(path).getAbsoluteFile();
+        if (!directory.isDirectory()) {
+            throw new GdxRuntimeException("Configured ANGLE native directory does not exist: " + directory);
+        }
+        return directory;
+    }
+
+    private static File getConfiguredNativeOrThrow (File directory, String fileName) {
+        File file = new File(directory, fileName);
+        if (!file.isFile()) {
+            throw new GdxRuntimeException("Missing ANGLE native file in configured directory: " + file);
+        }
+        return file;
+    }
+
     public static synchronized void load () {
         if (loaded) return;
         if (!is64Bit || !isWindows)
             throw new GdxRuntimeException("ANGLE D3D11 is only supported on x86_64 Windows.");
         String osDir = "windows64";
         String ext = ".dll";
+        File configuredNativesDirectory = getConfiguredNativesDirectory();
+        if (configuredNativesDirectory != null) {
+            d3dCompiler = getConfiguredNativeOrThrow(configuredNativesDirectory, D3D_COMPILER_LIB_NAME + ext);
+            egl = getConfiguredNativeOrThrow(configuredNativesDirectory, "lib" + EGL_LIB_NAME + ext);
+            gles = getConfiguredNativeOrThrow(configuredNativesDirectory, "lib" + GLES_LIB_NAME + ext);
+            glfw = getConfiguredNativeOrThrow(configuredNativesDirectory, GLFW_LIB_NAME + ext);
+        } else {
+            String d3dCompilerSource = osDir + "/" + D3D_COMPILER_LIB_NAME + ext;
+            String eglSource = osDir + "/lib" + EGL_LIB_NAME + ext;
+            String glesSource = osDir + "/lib" + GLES_LIB_NAME + ext;
+            String glfwSource = osDir + "/" + GLFW_LIB_NAME + ext;
+            String crc = resourceCrc(d3dCompilerSource) + resourceCrc(eglSource) + resourceCrc(glesSource) + resourceCrc(glfwSource);
+            d3dCompiler = getExtractedFileOrThrow(crc, d3dCompilerSource);
+            egl = getExtractedFileOrThrow(crc, eglSource);
+            gles = getExtractedFileOrThrow(crc, glesSource);
+            glfw = getExtractedFileOrThrow(crc, glfwSource);
 
-        String d3dCompilerSource = osDir + "/" + D3D_COMPILER_LIB_NAME + ext;
-        String eglSource = osDir + "/lib" + EGL_LIB_NAME + ext;
-        String glesSource = osDir + "/lib" + GLES_LIB_NAME + ext;
-        String crc = resourceCrc(d3dCompilerSource) + resourceCrc(eglSource) + resourceCrc(glesSource);
-        d3dCompiler = getExtractedFileOrThrow(crc, d3dCompilerSource);
-        egl = getExtractedFileOrThrow(crc, eglSource);
-        gles = getExtractedFileOrThrow(crc, glesSource);
-
-        extractFile(d3dCompilerSource, d3dCompiler);
-        extractFile(eglSource, egl);
-        extractFile(glesSource, gles);
+            extractFile(d3dCompilerSource, d3dCompiler);
+            extractFile(eglSource, egl);
+            extractFile(glesSource, gles);
+            extractFile(glfwSource, glfw);
+        }
 
         System.load(d3dCompiler.getAbsolutePath());
 
+        if (Configuration.GLFW_LIBRARY_NAME.get() == null) {
+            Configuration.GLFW_LIBRARY_NAME.set(glfw.getAbsolutePath());
+        }
         if (Configuration.EGL_LIBRARY_NAME.get() == null) {
             Configuration.EGL_LIBRARY_NAME.set(egl.getAbsolutePath());
         }

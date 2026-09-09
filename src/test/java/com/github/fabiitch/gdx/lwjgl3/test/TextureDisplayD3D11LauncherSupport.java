@@ -4,6 +4,11 @@ import com.badlogic.gdx.Graphics.DisplayMode;
 import com.badlogic.gdx.Graphics.Monitor;
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3D3D11Application;
+import com.github.fabiitch.gdx.lwjgl3.test.config.D3D11Win32WindowTweaks;
+import com.github.fabiitch.gdx.lwjgl3.test.config.TextureDisplayDiagnostics;
+import com.github.fabiitch.gdx.lwjgl3.test.config.Win32WindowMode;
+import com.github.fabiitch.gdx.lwjgl3.test.screen.OverlayTextureScreen;
+import com.github.fabiitch.gdx.lwjgl3.test.screen.SimpleTextureScreen;
 
 final class TextureDisplayD3D11LauncherSupport {
 
@@ -11,6 +16,8 @@ final class TextureDisplayD3D11LauncherSupport {
     }
 
     static void launch (TextureDisplayLaunchProfile profile) {
+        TextureDisplayDiagnostics.logD3D11Profile(profile);
+
         Lwjgl3ApplicationConfiguration config =
                 Lwjgl3ApplicationConfiguration.createAngleComposedFlipWindow(
                         profile.title, 1280, 720, profile.glesMajor, profile.glesMinor);
@@ -28,6 +35,7 @@ final class TextureDisplayD3D11LauncherSupport {
         config.setDecorated(profile.decorated);
         config.setResizable(profile.resizable);
         config.setMaximized(profile.maximized);
+        config.setForegroundFPS(profile.foregroundFps);
         config.setWindowedMode(displayMode.width, displayMode.height);
         config.setWindowPosition(monitor.virtualX, monitor.virtualY);
 
@@ -38,7 +46,8 @@ final class TextureDisplayD3D11LauncherSupport {
 
         config.disableAudio(profile.disableAudio);
 
-        new Lwjgl3D3D11Application(new SimpleTextureScreen(), config);
+        new Lwjgl3D3D11Application(
+                profile.overlayScreen ? new OverlayTextureScreen(profile) : new SimpleTextureScreen(profile), config);
     }
 }
 
