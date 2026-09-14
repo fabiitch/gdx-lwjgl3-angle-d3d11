@@ -9,12 +9,12 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.fabiitch.jnawintools.window.Window64Helper;
+import com.fabiitch.jnawintools.window.Window64Utils;
+import com.fabiitch.jnawintools.window.result.HwndResult;
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3Graphics;
 import com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayLaunchProfile;
 import com.github.fabiitch.gdx.lwjgl3.test.config.TextureDisplayDiagnostics;
-import com.nz.jnawintools.window.Window64Helper;
-import com.nz.jnawintools.window.Window64Utils;
-import com.nz.jnawintools.window.result.HwndResult;
 import com.sun.jna.platform.win32.WinUser;
 
 public class OverlayTextureScreen extends ApplicationAdapter {
