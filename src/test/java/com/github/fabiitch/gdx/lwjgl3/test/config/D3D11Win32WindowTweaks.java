@@ -1,9 +1,9 @@
 package com.github.fabiitch.gdx.lwjgl3.test.config;
 
+import com.fabiitch.jnawintools.window.Window64Utils;
+import com.fabiitch.jnawintools.window.result.WinApiResult;
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3Window;
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3WindowListener;
-import com.nz.jnawintools.window.Window64Utils;
-import com.nz.jnawintools.window.result.WinApiResult;
 import com.sun.jna.platform.win32.WinDef;
 
 public final class D3D11Win32WindowTweaks implements Lwjgl3WindowListener {

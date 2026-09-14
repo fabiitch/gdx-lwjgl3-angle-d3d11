@@ -1,11 +1,11 @@
 package com.github.fabiitch.gdx.lwjgl3.test.config;
 
-import com.nz.jnawintools.win32.User32Extended;
-import com.nz.jnawintools.window.Window64Utils;
-import com.nz.jnawintools.window.result.HwndResult;
-import com.nz.jnawintools.window.result.WinApiResultExtended;
-import com.nz.jnawintools.window.result.WindowBoundsResult;
-import com.nz.jnawintools.window.result.WindowStyleResult;
+import com.fabiitch.jnawintools.win32.User32Extended;
+import com.fabiitch.jnawintools.window.Window64Utils;
+import com.fabiitch.jnawintools.window.result.HwndResult;
+import com.fabiitch.jnawintools.window.result.WinApiResultExtended;
+import com.fabiitch.jnawintools.window.result.WindowBoundsResult;
+import com.fabiitch.jnawintools.window.result.WindowStyleResult;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLibrary;
 import com.sun.jna.Pointer;
