@@ -1,0 +1,30 @@
+package com.github.fabiitch.gdx.lwjgl3.test;
+
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.GL20;
+import com.github.fabiitch.gdx.lwjgl3.Lwjgl3ApplicationConfiguration;
+import com.github.fabiitch.gdx.lwjgl3.Lwjgl3D3D11Application;
+
+/** Minimal transparent-framebuffer ANGLE/D3D11 window. Run this class directly from the IDE. */
+public final class TransparentFramebufferD3D11WindowTest {
+    public static void main(String[] args) {
+        Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
+        config.setTitle("ANGLE D3D11 - Transparent framebuffer");
+        config.setWindowedMode(1280, 720);
+        config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32, 3, 0);
+        config.setTransparentFramebuffer(true);
+        config.setBackBufferConfig(8, 8, 8, 8, 16, 0, 0);
+        config.useVsync(true);
+        config.useAngleManualEglSurface(true);
+        config.useAngleDirectCompositionSurface(true);
+
+        new Lwjgl3D3D11Application(new ApplicationAdapter() {
+            @Override
+            public void render() {
+                Gdx.gl.glClearColor(0f, 0f, 0f, 0f);
+                Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+            }
+        }, config);
+    }
+}
