@@ -3,6 +3,8 @@ package com.github.fabiitch.gdx.lwjgl3.test;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3D3D11Application;
 
@@ -20,10 +22,31 @@ public final class TransparentFramebufferD3D11WindowTest {
         config.useAngleDirectCompositionSurface(true);
 
         new Lwjgl3D3D11Application(new ApplicationAdapter() {
+            private SpriteBatch batch;
+            private Texture logo;
+
+            @Override
+            public void create() {
+                batch = new SpriteBatch();
+                logo = new Texture(Gdx.files.internal("libgdx-logo.png"));
+            }
+
             @Override
             public void render() {
                 Gdx.gl.glClearColor(0f, 0f, 0f, 0f);
                 Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+                float x = (Gdx.graphics.getWidth() - logo.getWidth()) * 0.5f;
+                float y = (Gdx.graphics.getHeight() - logo.getHeight()) * 0.5f;
+                batch.begin();
+                batch.draw(logo, x, y);
+                batch.end();
+            }
+
+            @Override
+            public void dispose() {
+                batch.dispose();
+                logo.dispose();
             }
         }, config);
     }
