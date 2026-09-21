@@ -31,6 +31,9 @@ dependencies {
     implementation "org.lwjgl:lwjgl-egl:${lwjgl3VersionValue}"
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}"
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}:natives-windows"
+
+    // libGDX loads gdx64.dll through its SharedLibraryLoader at runtime.
+    runtimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersionValue}:natives-desktop"
 }
 
 tasks.register('verifyBundledWindowsNatives') {
