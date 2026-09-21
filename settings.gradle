@@ -1,4 +1,1 @@
 rootProject.name = 'gdx-lwjgl3-angle-d3d11'
-
-include 'JnaWinTools'
-project(":JnaWinTools").projectDir = file("../JnaWinTools")
