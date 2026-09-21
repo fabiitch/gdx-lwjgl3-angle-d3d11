@@ -10,6 +10,7 @@ The library embeds its complete native runtime under `windows64/`:
 glfw3.dll
 libEGL.dll
 libGLESv2.dll
+d3dcompiler_47.dll
 ```
 
 They are x64 Release DLLs. No sibling `angle`, `glfw` or `JnaWinTools` checkout is required to build or consume this project.
@@ -36,4 +37,4 @@ The bundled DLLs are extracted automatically. To override them for local diagnos
 -Dgdx.lwjgl3.angle.nativesDir=C:\path\to\native-dlls
 ```
 
-That directory must contain the same three files.
+That directory must contain the same four files.

@@ -6,7 +6,7 @@ def projectName = 'gdx-lwjgl3-angle-d3d11'
 def gdxVersionValue = providers.gradleProperty('gdxVersion').getOrElse('1.14.2')
 def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').getOrElse('3.3.3')
 def nativeLibsDir = file('libs')
-def bundledWindowsNativeNames = ['glfw3.dll', 'libEGL.dll', 'libGLESv2.dll']
+def bundledWindowsNativeNames = ['d3dcompiler_47.dll', 'glfw3.dll', 'libEGL.dll', 'libGLESv2.dll']
 
 group = 'com.github.fabiitch.gdx.lwjgl3'
 version = providers.gradleProperty('VERSION_NAME').getOrElse('1.0.0-SNAPSHOT')
@@ -47,11 +47,16 @@ tasks.register('verifyBundledWindowsNatives') {
 
 tasks.named('processResources') {
     dependsOn tasks.named('verifyBundledWindowsNatives')
-    exclude 'windows64/glfw3.dll', 'windows64/libEGL.dll', 'windows64/libGLESv2.dll'
+    exclude 'windows64/d3dcompiler_47.dll', 'windows64/glfw3.dll', 'windows64/libEGL.dll', 'windows64/libGLESv2.dll'
     from(nativeLibsDir) {
         include(bundledWindowsNativeNames as String[])
         into 'windows64'
     }
+}
+
+// The two classes under src/test are executable samples, not JUnit tests.
+tasks.named('test') {
+    failOnNoDiscoveredTests = false
 }
 
 jar {
