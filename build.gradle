@@ -72,7 +72,8 @@ tasks.register('configureGlfwRelease', Exec) {
     workingDir glfwProjectDir
     commandLine 'C:/Program Files/CMake/bin/cmake.exe', '-S', '.', '-B', 'build',
             '-DBUILD_SHARED_LIBS=ON', '-DGLFW_BUILD_EXAMPLES=OFF',
-            '-DGLFW_BUILD_TESTS=OFF', '-DGLFW_BUILD_DOCS=OFF'
+            '-DGLFW_BUILD_TESTS=OFF', '-DGLFW_BUILD_DOCS=OFF',
+            '-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded'
 }
 
 tasks.register('buildGlfwRelease', Exec) {
@@ -97,6 +98,10 @@ tasks.register('syncReleaseNatives', Sync) {
                     + "Provide -PangleReleaseNativesDir=<directory> when using externally built DLLs.")
         }
     }
+}
+
+tasks.named('verifyManualAngleNatives') {
+    dependsOn tasks.named('syncReleaseNatives')
 }
 
 tasks.named('processResources') {
