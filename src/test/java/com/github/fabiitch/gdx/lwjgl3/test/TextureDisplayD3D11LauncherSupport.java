@@ -36,8 +36,13 @@ final class TextureDisplayD3D11LauncherSupport {
         config.setResizable(profile.resizable);
         config.setMaximized(profile.maximized);
         config.setForegroundFPS(profile.foregroundFps);
-        config.setWindowedMode(displayMode.width, displayMode.height);
-        config.setWindowPosition(monitor.virtualX, monitor.virtualY);
+        if (profile.exclusiveFullscreen) {
+            config.setFullscreenMode(displayMode);
+        } else {
+            // DirectComposition overlays must remain windowed so DWM can assign an MPO plane.
+            config.setWindowedMode(displayMode.width, displayMode.height);
+            config.setWindowPosition(monitor.virtualX, monitor.virtualY);
+        }
 
         if (profile.win32WindowMode != Win32WindowMode.NONE) {
             config.setPreAngleSurfaceWindowHandleListener(windowHandle ->

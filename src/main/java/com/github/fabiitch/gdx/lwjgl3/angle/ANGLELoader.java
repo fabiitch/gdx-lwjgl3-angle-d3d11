@@ -33,6 +33,18 @@ public class ANGLELoader {
     private static final String EGL_LIB_NAME = "EGL";
     private static final String GLES_LIB_NAME = "GLESv2";
     private static final String GLFW_LIB_NAME = "glfw3";
+    /** DLLs dynamically imported by the locally-built Debug ANGLE binaries. */
+    private static final String[] DEBUG_ANGLE_RUNTIME_DLLS = {
+            "ucrtbased.dll",
+            "vcruntime140d.dll",
+            "vcruntime140_1d.dll",
+            "libc++.dll",
+            "third_party_zlib.dll",
+            "third_party_abseil-cpp_absl.dll",
+            "_angle_libperfetto.dll",
+            "dawn_platform.dll",
+            "dawn_native.dll"
+    };
     /** JVM property whose value is the directory containing the four Windows native DLLs. */
     public static final String NATIVES_DIR_PROPERTY = "gdx.lwjgl3.angle.nativesDir";
 
@@ -192,7 +204,16 @@ public class ANGLELoader {
 
     private static File getConfiguredNativesDirectory () {
         String path = System.getProperty(NATIVES_DIR_PROPERTY);
-        if (path == null || path.trim().isEmpty()) return null;
+        if (path == null || path.trim().isEmpty()) {
+            // IDE launch convenience: running from the backend project root should use the freshly
+            // synchronized Debug DLLs, while packaged applications still fall back to JAR resources.
+            File localLibs = new File("libs").getAbsoluteFile();
+            if (containsRequiredNatives(localLibs)) {
+                System.out.println("[ANGLE-D3D11] Using local native DLL directory: " + localLibs);
+                return localLibs;
+            }
+            return null;
+        }
 
         File directory = new File(path).getAbsoluteFile();
         if (!directory.isDirectory()) {
@@ -201,12 +222,29 @@ public class ANGLELoader {
         return directory;
     }
 
+    private static boolean containsRequiredNatives (File directory) {
+        return directory.isDirectory()
+                && new File(directory, D3D_COMPILER_LIB_NAME + ".dll").isFile()
+                && new File(directory, "lib" + EGL_LIB_NAME + ".dll").isFile()
+                && new File(directory, "lib" + GLES_LIB_NAME + ".dll").isFile()
+                && new File(directory, GLFW_LIB_NAME + ".dll").isFile();
+    }
+
     private static File getConfiguredNativeOrThrow (File directory, String fileName) {
         File file = new File(directory, fileName);
         if (!file.isFile()) {
             throw new GdxRuntimeException("Missing ANGLE native file in configured directory: " + file);
         }
         return file;
+    }
+
+    private static void loadDebugRuntimeDependencies (File directory) {
+        for (String fileName : DEBUG_ANGLE_RUNTIME_DLLS) {
+            File file = new File(directory, fileName);
+            if (!file.isFile()) continue;
+            System.out.println("[ANGLE-D3D11] Preloading Debug runtime dependency: " + fileName);
+            System.load(file.getAbsolutePath());
+        }
     }
 
     public static synchronized void load () {
@@ -221,6 +259,7 @@ public class ANGLELoader {
             egl = getConfiguredNativeOrThrow(configuredNativesDirectory, "lib" + EGL_LIB_NAME + ext);
             gles = getConfiguredNativeOrThrow(configuredNativesDirectory, "lib" + GLES_LIB_NAME + ext);
             glfw = getConfiguredNativeOrThrow(configuredNativesDirectory, GLFW_LIB_NAME + ext);
+            loadDebugRuntimeDependencies(configuredNativesDirectory);
         } else {
             String d3dCompilerSource = osDir + "/" + D3D_COMPILER_LIB_NAME + ext;
             String eglSource = osDir + "/lib" + EGL_LIB_NAME + ext;

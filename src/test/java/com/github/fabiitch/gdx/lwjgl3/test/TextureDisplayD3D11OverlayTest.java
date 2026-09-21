@@ -13,7 +13,8 @@ public class TextureDisplayD3D11OverlayTest {
                 .glesVersion(3, 0)
                 .transparentFramebuffer(true)
                 .alphaBits(8)
-                .vSync(false)
+                
+                .vSync(true)
                 .angleManualEglSurface(true)
                 .angleFastPresentPath(true)
                 .angleDirectCompositionSurface(true)
@@ -22,6 +23,7 @@ public class TextureDisplayD3D11OverlayTest {
                 .maximized(false)
                 .foregroundFps(0)
                 .disableAudio(true)
+                .exclusiveFullscreen(false)
                 .win32WindowMode(Win32WindowMode.OVERLAY_TOPMOST_CLICK_THROUGH)
                 .overlayScreen(true)
                 .build();
