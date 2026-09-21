@@ -20,6 +20,7 @@ public class TextureDisplayLaunchProfile {
     public final boolean maximized;
     public final int foregroundFps;
     public final boolean disableAudio;
+    public final boolean exclusiveFullscreen;
     public final Win32WindowMode win32WindowMode;
     public final boolean overlayScreen;
 
@@ -38,6 +39,7 @@ public class TextureDisplayLaunchProfile {
         this.maximized = builder.maximized;
         this.foregroundFps = builder.foregroundFps;
         this.disableAudio = builder.disableAudio;
+        this.exclusiveFullscreen = builder.exclusiveFullscreen;
         this.win32WindowMode = builder.win32WindowMode;
         this.overlayScreen = builder.overlayScreen;
     }
@@ -61,6 +63,7 @@ public class TextureDisplayLaunchProfile {
         private boolean maximized = false;
         private int foregroundFps = 0;
         private boolean disableAudio = true;
+        private boolean exclusiveFullscreen = false;
         private Win32WindowMode win32WindowMode = Win32WindowMode.NONE;
         private boolean overlayScreen = false;
 
@@ -127,6 +130,12 @@ public class TextureDisplayLaunchProfile {
 
         Builder disableAudio(boolean disableAudio) {
             this.disableAudio = disableAudio;
+            return this;
+        }
+
+        /** Uses a monitor-attached GLFW window instead of a desktop-sized popup window. */
+        Builder exclusiveFullscreen(boolean exclusiveFullscreen) {
+            this.exclusiveFullscreen = exclusiveFullscreen;
             return this;
         }
 

@@ -5,6 +5,7 @@ import com.fabiitch.jnawintools.window.result.WinApiResult;
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3Window;
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3WindowListener;
 import com.sun.jna.platform.win32.WinDef;
+import com.sun.jna.platform.win32.WinUser;
 
 public final class D3D11Win32WindowTweaks implements Lwjgl3WindowListener {
     private final Win32WindowMode mode;
@@ -85,8 +86,13 @@ public final class D3D11Win32WindowTweaks implements Lwjgl3WindowListener {
         check("remove appwindow", Window64Utils.setAppWindow(hwnd, false));
         check("tool window", Window64Utils.setToolWindow(hwnd, true));
         check("no activate", Window64Utils.addExStyle(hwnd, Win32WindowDiagnostics.WS_EX_NOACTIVATE));
-        check("no redirection bitmap", Window64Utils.setNoRedirectionBitmap(hwnd, false));
-        check("click through", Window64Utils.setClickThrough(hwnd));
+        // WS_EX_NOREDIRECTIONBITMAP must be supplied at HWND creation. GLFW does it
+        // before CreateWindowExW for the ANGLE DirectComposition profile.
+        System.out.println("[Win32Tweaks] DirectComposition redirection policy configured by GLFW at HWND creation");
+        // Input pass-through is supplied by OverlayWindowController via
+        // WM_NCHITTEST -> HTTRANSPARENT. Avoid both WS_EX_LAYERED and
+        // WS_EX_TRANSPARENT so the HWND has no legacy transparency style.
+        check("remove legacy transparent style", Window64Utils.removeExStyle(hwnd, WinUser.WS_EX_TRANSPARENT));
         check("topmost", Window64Utils.setAlwaysOnTop(hwnd));
         check("show window", Window64Utils.showWindow(hwnd));
     }

@@ -13,6 +13,18 @@ They are packaged in the JAR under `windows64/`. At runtime, set the JVM propert
 java -Dgdx.lwjgl3.angle.nativesDir="C:\path\to\dlls" ...
 ```
 The directory must contain all four files listed above. The custom `glfw3.dll` is required because it provides `GLFW_ANGLE_SURFACE_DIRECT_COMPOSITION` (`0x00050004`, GLFW PR #2889).
+
+## One-command local native rebuild
+
+From this project directory, build the instrumented Debug x64 GLFW and ANGLE binaries and synchronize all four runtime DLLs into `libs/`:
+```powershell
+.\gradlew.bat buildAngleD3D11Natives
+```
+This expects sibling `../glfw`, `../angle` and `../depot_tools` directories. It configures and builds GLFW, runs ANGLE's `autoninja` with the local Visual Studio toolchain, then copies `glfw3.dll`, `libEGL.dll`, `libGLESv2.dll`, and `d3dcompiler_47.dll` into `libs/`.
+
+Both launchers below depend on this task, so launching either profile rebuilds and synchronizes the native dependencies first. Pass `-PcmakeExecutable="C:\path\to\cmake.exe"` if CMake is not on `PATH`.
+
+When launched directly from an IDE with this project as the working directory, the backend automatically uses `./libs`; no JVM property is required. The Debug ANGLE runtime dependencies are copied there alongside the four primary DLLs.
 ## Usage
 ```java
 import com.github.fabiitch.gdx.lwjgl3.Lwjgl3ApplicationConfiguration;

@@ -22,6 +22,7 @@ public final class TextureDisplayDiagnostics {
                 + " vsync=" + profile.vSync
                 + " foregroundFPS=" + profile.foregroundFps
                 + " disableAudio=" + profile.disableAudio
+                + " exclusiveFullscreen=" + profile.exclusiveFullscreen
                 + " win32WindowMode=" + profile.win32WindowMode
                 + " overlayScreen=" + profile.overlayScreen);
         logSwapchainExpectation(profile);
@@ -57,9 +58,15 @@ public final class TextureDisplayDiagnostics {
             System.out.println("[SwapchainExpectation] ANGLE surface is not manually created by this backend profile.");
             return;
         }
-        if (profile.angleDirectCompositionSurface || profile.angleFastPresentPath) {
-            System.out.println("[SwapchainExpectation] Expected PresentMon path: DWM/DirectComposition oriented; "
-                    + "Composed: Flip is expected when ANGLE accepts EGL_DIRECT_COMPOSITION_ANGLE.");
+        if (profile.exclusiveFullscreen) {
+            System.out.println("[SwapchainExpectation] Target: Independent Flip. The window is opaque, undecorated, "
+                    + "monitor-attached and v-synced; PresentMon remains the authority on promotion.");
+        } else if (profile.overlayScreen) {
+            System.out.println("[SwapchainExpectation] Target: Hardware Composed Flip. The DirectComposition overlay "
+                    + "is topmost/click-through and desktop-sized so DWM may assign an MPO plane.");
+        } else if (profile.angleDirectCompositionSurface || profile.angleFastPresentPath) {
+            System.out.println("[SwapchainExpectation] Target: DirectComposition flip-model presentation; Windows may "
+                    + "select Composed: Flip when it cannot promote the surface.");
         } else {
             System.out.println("[SwapchainExpectation] Expected experiment: regular HWND EGL surface. "
                     + "If PresentMon still reports Composed/Copy, the blocker is ANGLE's internal DXGI swapchain policy.");

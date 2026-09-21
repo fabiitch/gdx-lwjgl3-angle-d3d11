@@ -6,6 +6,21 @@ def projectName = 'gdx-lwjgl3-angle-d3d11'
 def gdxVersionValue = providers.gradleProperty('gdxVersion').getOrElse('1.14.2')
 def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').getOrElse('3.3.3')
 def junitVersion = providers.gradleProperty('junitVersion').getOrElse('5.10.0')
+def cmakeExecutable = providers.gradleProperty('cmakeExecutable').getOrElse('cmake')
+def workspaceRoot = projectDir.parentFile
+def angleProjectDir = new File(workspaceRoot, 'angle')
+def glfwProjectDir = new File(workspaceRoot, 'glfw')
+def glfwBuildDir = new File(glfwProjectDir, 'build')
+def glfwNativeDir = new File(glfwBuildDir, 'src/Debug')
+def angleBuildDir = new File(angleProjectDir, 'out/Debug')
+// autoninja -C out/Debug writes the DLLs directly into this directory.
+def angleNativeDir = angleBuildDir
+def nativeLibsDir = file('libs')
+def angleDebugRuntimeDlls = [
+        '_angle_libperfetto.dll', 'dawn_native.dll', 'dawn_platform.dll',
+        'libc++.dll', 'third_party_abseil-cpp_absl.dll', 'third_party_zlib.dll',
+        'ucrtbased.dll', 'vcruntime140d.dll', 'vcruntime140_1d.dll'
+]
 
 group = 'com.github.fabiitch.gdx.lwjgl3'
 version = providers.gradleProperty('VERSION_NAME').getOrElse('1.0.0-SNAPSHOT')
@@ -62,38 +77,173 @@ tasks.register('verifyManualAngleNatives') {
     }
 }
 
+tasks.register('configureGlfwDebug', Exec) {
+    group = 'angle'
+    description = 'Configures GLFW as a shared Debug x64 library for the local ANGLE experiment.'
+    workingDir glfwProjectDir
+    commandLine cmakeExecutable, '-S', '.', '-B', 'build',
+            '-DBUILD_SHARED_LIBS=ON',
+            '-DGLFW_BUILD_EXAMPLES=OFF', '-DGLFW_BUILD_TESTS=OFF', '-DGLFW_BUILD_DOCS=OFF'
+}
+
+tasks.register('buildGlfwDebug', Exec) {
+    group = 'angle'
+    description = 'Builds the instrumented GLFW Debug x64 DLL.'
+    dependsOn tasks.named('configureGlfwDebug')
+    workingDir glfwProjectDir
+    commandLine cmakeExecutable, '--build', 'build', '--config', 'Debug', '--target', 'glfw', '--parallel'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('buildAngleDebug', Exec) {
+    group = 'angle'
+    description = 'Builds the instrumented ANGLE libEGL and libGLESv2 Debug x64 DLLs.'
+    workingDir angleProjectDir
+    environment 'DEPOT_TOOLS_WIN_TOOLCHAIN', '0'
+    // The standalone ANGLE checkout does not vendor depot_tools' CIPD Ninja.  Dawn's pinned
+    // Ninja is already part of this checkout, so make it available to autoninja explicitly.
+    // Keep parallelism bounded: the initial Debug build is large, while this still leaves
+    // enough memory and avoids the file-lock contention seen with two concurrent builds.
+    commandLine 'cmd', '/c', 'set "PATH=%CD%\\third_party\\dawn\\third_party\\ninja;%PATH%" & ..\\depot_tools\\autoninja.bat -C out\\Debug -j 8 libEGL libGLESv2'
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('syncAngleD3D11Natives', Copy) {
+    group = 'angle'
+    description = 'Copies the freshly built GLFW and ANGLE Debug DLLs into this project’s libs directory.'
+    dependsOn tasks.named('buildGlfwDebug'), tasks.named('buildAngleDebug')
+    from(glfwNativeDir) {
+        include 'glfw3.dll'
+    }
+    from(angleNativeDir) {
+        // Debug ANGLE is dynamically linked. Keep its runtime dependencies beside the primary DLLs
+        // so an IDE launch from this project does not fail with Win32 error 126.
+        include 'd3dcompiler_47.dll', 'libEGL.dll', 'libGLESv2.dll', *angleDebugRuntimeDlls
+    }
+    into nativeLibsDir
+    outputs.upToDateWhen { false }
+    doFirst {
+        if (!angleProjectDir.isDirectory() || !glfwProjectDir.isDirectory()) {
+            throw new GradleException("Expected sibling angle/ and glfw/ directories beside ${projectDir}")
+        }
+    }
+}
+
+tasks.named('verifyManualAngleNatives') {
+    dependsOn tasks.named('syncAngleD3D11Natives')
+}
+
+tasks.register('buildAngleD3D11Natives') {
+    group = 'angle'
+    description = 'One-command rebuild and synchronization of all four ANGLE D3D11 debug DLLs.'
+    dependsOn tasks.named('verifyManualAngleNatives')
+}
+
 tasks.named('processResources') {
     dependsOn tasks.named('verifyManualAngleNatives')
     exclude 'windows64/d3dcompiler_47.dll', 'windows64/glfw3.dll', 'windows64/libEGL.dll', 'windows64/libGLESv2.dll'
     from('libs') {
-        include 'd3dcompiler_47.dll', 'glfw3.dll', 'libEGL.dll', 'libGLESv2.dll'
+        include 'd3dcompiler_47.dll', 'glfw3.dll', 'libEGL.dll', 'libGLESv2.dll', *angleDebugRuntimeDlls
         into 'windows64'
     }
 }
 
+// Keep the standalone launcher sources in the normal test source set.  The previous source
+// override made compilation depend on stale .class files and hid test helpers from new launchers.
+def mainTestCompileJar = tasks.named('jar').flatMap { it.archiveFile }
+def jnaWinToolsTestCompileJar = files(project(':JnaWinTools').layout.buildDirectory
+        .file('libs/JnaWinTools-1.0-SNAPSHOT.jar'))
 tasks.named('compileTestJava') {
-    source sourceSets.main.java
+    source = sourceSets.test.java
+    dependsOn tasks.named('jar'), ':JnaWinTools:jar'
+    // javac 25 in this local setup does not resolve classes from these two output directories,
+    // although it resolves the exact same classes from their archives.  Put the archives on the
+    // compile classpath so every launcher can be rebuilt from source.
+    classpath = sourceSets.test.compileClasspath + files(mainTestCompileJar, jnaWinToolsTestCompileJar)
+    options.incremental = false
 }
-
 
 tasks.register('runTextureD3D11IndependentFlipCandidate', JavaExec) {
     group = 'verification'
     description = 'Runs borderless full-screen window with Win32 WS_POPUP tweaks for Independent Flip/MPO tests.'
-    dependsOn tasks.named('testClasses')
+    dependsOn tasks.named('testClasses'), tasks.named('syncAngleD3D11Natives')
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11IndependentFlipCandidateLauncher'
     jvmArgs '--enable-native-access=ALL-UNNAMED'
     systemProperty 'gdx.lwjgl3.angle.nativesDir', layout.projectDirectory.dir('libs').asFile.absolutePath
+    environment 'ANGLE_SWAPCHAIN_TRACE_FILE', layout.buildDirectory.file('angle-swapchain-trace.log').get().asFile.absolutePath
 }
 
 tasks.register('runTextureD3D11Overlay', JavaExec) {
     group = 'verification'
     description = 'Runs a transparent topmost ANGLE/D3D11 overlay using alpha swapchain/DComp without WS_EX_LAYERED.'
-    dependsOn tasks.named('testClasses')
+    dependsOn tasks.named('testClasses'), tasks.named('syncAngleD3D11Natives')
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11OverlayTest'
     jvmArgs '--enable-native-access=ALL-UNNAMED'
     systemProperty 'gdx.lwjgl3.angle.nativesDir', layout.projectDirectory.dir('libs').asFile.absolutePath
+    environment 'ANGLE_SWAPCHAIN_TRACE_FILE', layout.buildDirectory.file('angle-swapchain-trace.log').get().asFile.absolutePath
+}
+
+// Portable debug image: Windows sees AngleOverlayDebug.exe as a distinct GPU-preference target.
+// It deliberately uses jpackage's app-image format (an executable plus a bundled runtime), not
+// an installer, so it can be rebuilt and moved without installing anything.
+def overlayDebugImageRoot = layout.buildDirectory.dir('overlay-exe')
+def overlayDebugInputDir = layout.buildDirectory.dir('overlay-exe-input')
+def overlayDebugLauncherDir = layout.buildDirectory.dir('overlay-exe-launcher')
+def overlayDebugRuntimeJars = files {
+    sourceSets.test.runtimeClasspath.files.findAll { it.name.endsWith('.jar') }
+}
+def jnaWinToolsRuntimeJar = new File(workspaceRoot, 'JnaWinTools/build/libs/JnaWinTools-1.0-SNAPSHOT.jar')
+def overlayDebugLauncherJar = tasks.register('overlayDebugLauncherJar', Jar) {
+    archiveFileName.set('angle-overlay-debug.jar')
+    destinationDirectory.set(overlayDebugLauncherDir)
+    // The debug launcher needs bytecode only.  Keeping resource output out avoids the normal
+    // resource pipeline, which synchronizes native DLLs and cannot run while an overlay loads
+    // the Debug CRT.
+    // Use the known class directories as plain inputs.  Referencing SourceSet outputs would
+    // reintroduce their task dependencies (including native-DLL synchronization).
+    from file('build/classes/java/main')
+    from file('build/classes/java/test')
+    manifest {
+        attributes('Main-Class': 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11OverlayTest')
+    }
+}
+
+def prepareOverlayDebugExe = tasks.register('prepareOverlayDebugExe', Sync) {
+    // Do not resync native DLLs here: a live overlay has them loaded and Windows locks Debug CRT
+    // DLLs.  The task packages the current, already-synced libs/ directory instead.
+    dependsOn overlayDebugLauncherJar
+    into overlayDebugInputDir
+    from overlayDebugLauncherJar
+    from overlayDebugRuntimeJars
+    from jnaWinToolsRuntimeJar
+    from(nativeLibsDir) {
+        include '*.dll'
+        into 'natives'
+    }
+}
+
+tasks.register('packageAngleOverlayDebug', Exec) {
+    group = 'distribution'
+    description = 'Builds a portable AngleOverlayDebug.exe with bundled Java and ANGLE DLLs.'
+    dependsOn prepareOverlayDebugExe
+    doFirst {
+        // jpackage refuses to overwrite an existing image.  This is an isolated generated
+        // directory under build/, recreated entirely by this task.
+        delete(overlayDebugImageRoot)
+    }
+    workingDir projectDir
+    commandLine 'C:/Program Files/Java/jdk-25.0.1/bin/jpackage.exe',
+            '--type', 'app-image',
+            '--name', 'AngleOverlayDebug',
+            '--dest', overlayDebugImageRoot.get().asFile.absolutePath,
+            '--input', overlayDebugInputDir.get().asFile.absolutePath,
+            '--main-jar', 'angle-overlay-debug.jar',
+            '--main-class', 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11OverlayTest',
+            '--win-console',
+            '--java-options', '--enable-native-access=ALL-UNNAMED',
+            '--java-options', '-Dgdx.lwjgl3.angle.nativesDir=$APPDIR/natives'
 }
 
 tasks.named('test') {
