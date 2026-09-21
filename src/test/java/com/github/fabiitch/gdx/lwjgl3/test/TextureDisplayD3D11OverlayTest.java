@@ -13,9 +13,9 @@ public class TextureDisplayD3D11OverlayTest {
                 .glesVersion(3, 0)
                 .transparentFramebuffer(true)
                 .alphaBits(8)
-                .vSync(false)
+                .vSync(true)
                 .angleManualEglSurface(true)
-                .angleFastPresentPath(true)
+                .angleFastPresentPath(false)
                 .angleDirectCompositionSurface(true)
                 .decorated(false)
                 .resizable(false)
@@ -29,4 +29,3 @@ public class TextureDisplayD3D11OverlayTest {
         TextureDisplayD3D11LauncherSupport.launch(profile);
     }
 }
-

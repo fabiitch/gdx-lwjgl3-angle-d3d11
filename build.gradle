@@ -6,6 +6,15 @@ def projectName = 'gdx-lwjgl3-angle-d3d11'
 def gdxVersionValue = providers.gradleProperty('gdxVersion').getOrElse('1.14.2')
 def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').getOrElse('3.3.3')
 def junitVersion = providers.gradleProperty('junitVersion').getOrElse('5.10.0')
+def workspaceRoot = projectDir.parentFile
+def angleProjectDir = new File(workspaceRoot, 'angle')
+def glfwProjectDir = new File(workspaceRoot, 'glfw')
+def glfwReleaseNativeDir = new File(glfwProjectDir, 'build/src/Release')
+def angleReleaseNativeDir = providers.gradleProperty('angleReleaseNativesDir')
+        .map { project.file(it) }
+        .getOrElse(new File(angleProjectDir, 'out/Release'))
+def nativeLibsDir = file('libs')
+def productionNativeNames = ['glfw3.dll', 'libEGL.dll', 'libGLESv2.dll']
 
 group = 'com.github.fabiitch.gdx.lwjgl3'
 version = providers.gradleProperty('VERSION_NAME').getOrElse('1.0.0-SNAPSHOT')
@@ -46,33 +55,66 @@ dependencies {
 }
 
 tasks.register('verifyManualAngleNatives') {
-    def nativeFiles = files(
-            'libs/d3dcompiler_47.dll',
-            'libs/glfw3.dll',
-            'libs/libEGL.dll',
-            'libs/libGLESv2.dll'
-    )
+    def nativeFiles = files(productionNativeNames.collect { new File(nativeLibsDir, it) })
     inputs.files(nativeFiles)
 
     doLast {
         def missing = nativeFiles.files.findAll { !it.isFile() }
         if (!missing.isEmpty()) {
-            throw new GradleException("Missing manual ANGLE D3D11 native files: ${missing*.path.join(', ')}")
+            throw new GradleException("Missing production ANGLE/GLFW DLLs: ${missing*.path.join(', ')}")
+        }
+    }
+}
+
+tasks.register('configureGlfwRelease', Exec) {
+    group = 'distribution'
+    description = 'Configures GLFW as a shared x64 Release DLL.'
+    workingDir glfwProjectDir
+    commandLine 'C:/Program Files/CMake/bin/cmake.exe', '-S', '.', '-B', 'build',
+            '-DBUILD_SHARED_LIBS=ON', '-DGLFW_BUILD_EXAMPLES=OFF',
+            '-DGLFW_BUILD_TESTS=OFF', '-DGLFW_BUILD_DOCS=OFF'
+}
+
+tasks.register('buildGlfwRelease', Exec) {
+    group = 'distribution'
+    description = 'Builds the production GLFW DLL.'
+    dependsOn tasks.named('configureGlfwRelease')
+    workingDir glfwProjectDir
+    commandLine 'C:/Program Files/CMake/bin/cmake.exe', '--build', 'build', '--config', 'Release',
+            '--target', 'glfw', '--parallel'
+}
+
+tasks.register('syncReleaseNatives', Sync) {
+    group = 'distribution'
+    description = 'Stages only the production GLFW and ANGLE DLLs used by the V1 overlay.'
+    dependsOn tasks.named('buildGlfwRelease')
+    from(glfwReleaseNativeDir) { include 'glfw3.dll' }
+    from(angleReleaseNativeDir) { include 'libEGL.dll', 'libGLESv2.dll' }
+    into nativeLibsDir
+    doFirst {
+        if (!angleReleaseNativeDir.isDirectory()) {
+            throw new GradleException("ANGLE Release DLL directory does not exist: ${angleReleaseNativeDir}. "
+                    + "Provide -PangleReleaseNativesDir=<directory> when using externally built DLLs.")
         }
     }
 }
 
 tasks.named('processResources') {
     dependsOn tasks.named('verifyManualAngleNatives')
-    exclude 'windows64/d3dcompiler_47.dll', 'windows64/glfw3.dll', 'windows64/libEGL.dll', 'windows64/libGLESv2.dll'
+    exclude 'windows64/glfw3.dll', 'windows64/libEGL.dll', 'windows64/libGLESv2.dll'
     from('libs') {
-        include 'd3dcompiler_47.dll', 'glfw3.dll', 'libEGL.dll', 'libGLESv2.dll'
+        include(productionNativeNames as String[])
         into 'windows64'
     }
 }
 
+def mainTestCompileJar = tasks.named('jar').flatMap { it.archiveFile }
+def jnaWinToolsTestCompileJar = files(project(':JnaWinTools').layout.buildDirectory
+        .file('libs/JnaWinTools-1.0-SNAPSHOT.jar'))
 tasks.named('compileTestJava') {
-    source sourceSets.main.java
+    dependsOn tasks.named('jar'), ':JnaWinTools:jar'
+    classpath = sourceSets.test.compileClasspath + files(mainTestCompileJar, jnaWinToolsTestCompileJar)
+    options.incremental = false
 }
 
 
@@ -94,6 +136,47 @@ tasks.register('runTextureD3D11Overlay', JavaExec) {
     mainClass = 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11OverlayTest'
     jvmArgs '--enable-native-access=ALL-UNNAMED'
     systemProperty 'gdx.lwjgl3.angle.nativesDir', layout.projectDirectory.dir('libs').asFile.absolutePath
+}
+
+def overlayV1ImageRoot = layout.buildDirectory.dir('overlay-v1')
+def overlayV1InputDir = layout.buildDirectory.dir('overlay-v1-input')
+def overlayV1LauncherDir = layout.buildDirectory.dir('overlay-v1-launcher')
+def overlayV1RuntimeJars = files { sourceSets.test.runtimeClasspath.files.findAll { it.name.endsWith('.jar') } }
+def jnaWinToolsRuntimeJar = new File(workspaceRoot, 'JnaWinTools/build/libs/JnaWinTools-1.0-SNAPSHOT.jar')
+def overlayV1LauncherJar = tasks.register('overlayV1LauncherJar', Jar) {
+    dependsOn tasks.named('syncReleaseNatives'), tasks.named('testClasses')
+    archiveFileName.set('angle-overlay-v1.jar')
+    destinationDirectory.set(overlayV1LauncherDir)
+    from file('build/classes/java/main')
+    from file('build/classes/java/test')
+    manifest { attributes('Main-Class': 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11OverlayTest') }
+}
+
+def prepareAngleOverlayV1 = tasks.register('prepareAngleOverlayV1', Sync) {
+    dependsOn tasks.named('syncReleaseNatives'), overlayV1LauncherJar
+    into overlayV1InputDir
+    from overlayV1LauncherJar
+    from overlayV1RuntimeJars
+    from jnaWinToolsRuntimeJar
+    from(nativeLibsDir) {
+        include(productionNativeNames as String[])
+        into 'natives'
+    }
+}
+
+tasks.register('packageAngleOverlayV1', Exec) {
+    group = 'distribution'
+    description = 'Builds a portable production AngleOverlayV1.exe with only GLFW and ANGLE native DLLs.'
+    dependsOn prepareAngleOverlayV1
+    doFirst { delete(overlayV1ImageRoot) }
+    commandLine 'C:/Program Files/Java/jdk-25.0.1/bin/jpackage.exe',
+            '--type', 'app-image', '--name', 'AngleOverlayV1',
+            '--dest', overlayV1ImageRoot.get().asFile.absolutePath,
+            '--input', overlayV1InputDir.get().asFile.absolutePath,
+            '--main-jar', 'angle-overlay-v1.jar',
+            '--main-class', 'com.github.fabiitch.gdx.lwjgl3.test.TextureDisplayD3D11OverlayTest',
+            '--java-options', '--enable-native-access=ALL-UNNAMED',
+            '--java-options', '-Dgdx.lwjgl3.angle.nativesDir=$APPDIR/natives'
 }
 
 tasks.named('test') {

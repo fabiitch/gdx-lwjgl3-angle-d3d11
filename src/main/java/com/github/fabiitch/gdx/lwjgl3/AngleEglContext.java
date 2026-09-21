@@ -32,7 +32,6 @@ final class AngleEglContext {
     private static final int EGL_DIRECT_COMPOSITION_ANGLE = 0x33A5;
     private static final int EGL_EXPERIMENTAL_PRESENT_PATH_ANGLE = 0x33A4;
     private static final int EGL_EXPERIMENTAL_PRESENT_PATH_FAST_ANGLE = 0x33A9;
-    private static final int EGL_SWAP_INTERVAL_ANGLE = 0x322F;
     private static final int EGL_TRUE = 1;
 
     private static final Map<Long, AngleEglContext> contexts = new HashMap<Long, AngleEglContext>();
@@ -79,10 +78,8 @@ final class AngleEglContext {
                 throw new GdxRuntimeException("Couldn't create ANGLE EGL context: " + eglError());
             }
 
-            long surface = createWindowSurface(hwnd, config, true, true);
-            if (surface == EGL10.EGL_NO_SURFACE) surface = createWindowSurface(hwnd, config, false, true);
-            if (surface == EGL10.EGL_NO_SURFACE) surface = createWindowSurface(hwnd, config, true, false);
-            if (surface == EGL10.EGL_NO_SURFACE) surface = createWindowSurface(hwnd, config, false, false);
+            long surface = createWindowSurface(hwnd, config, true);
+            if (surface == EGL10.EGL_NO_SURFACE) surface = createWindowSurface(hwnd, config, false);
             if (surface == EGL10.EGL_NO_SURFACE) {
                 EGL10.eglDestroyContext(display, context);
                 throw new GdxRuntimeException("Couldn't create ANGLE EGL window surface: " + eglError());
@@ -206,22 +203,13 @@ final class AngleEglContext {
         }
     }
 
-    private static long createWindowSurface (long hwnd, Lwjgl3ApplicationConfiguration config, boolean withSwapInterval,
+    private static long createWindowSurface (long hwnd, Lwjgl3ApplicationConfiguration config,
                                              boolean requestDirectComposition) {
         try (MemoryStack stack = stackPush()) {
             boolean canRequestDirectComposition = config.angleDirectCompositionSurface && requestDirectComposition
                     && hasExtension("EGL_ANGLE_direct_composition");
             IntBuffer surfaceAttribs;
-            if (withSwapInterval && canRequestDirectComposition) {
-                surfaceAttribs = stack.ints(
-                        EGL_SWAP_INTERVAL_ANGLE, config.vSyncEnabled ? 1 : 0,
-                        EGL_DIRECT_COMPOSITION_ANGLE, EGL_TRUE,
-                        EGL10.EGL_NONE);
-            } else if (withSwapInterval) {
-                surfaceAttribs = stack.ints(
-                        EGL_SWAP_INTERVAL_ANGLE, config.vSyncEnabled ? 1 : 0,
-                        EGL10.EGL_NONE);
-            } else if (canRequestDirectComposition) {
+            if (canRequestDirectComposition) {
                 surfaceAttribs = stack.ints(
                         EGL_DIRECT_COMPOSITION_ANGLE, EGL_TRUE,
                         EGL10.EGL_NONE);
@@ -230,19 +218,15 @@ final class AngleEglContext {
             }
             long surface = EGL10.eglCreateWindowSurface(display, eglConfig, hwnd, surfaceAttribs);
             System.out.println("[ANGLE-D3D11] eglCreateWindowSurface attempt hwnd=0x" + Long.toHexString(hwnd)
-                    + " attrs=" + surfaceAttribSummary(withSwapInterval, canRequestDirectComposition, config.vSyncEnabled)
+                    + " attrs=" + surfaceAttribSummary(canRequestDirectComposition)
                     + " result=" + (surface == EGL10.EGL_NO_SURFACE ? "NO_SURFACE " + eglError() : "0x" + Long.toHexString(surface)));
             return surface;
         }
     }
 
-    private static String surfaceAttribSummary (boolean withSwapInterval, boolean requestDirectComposition, boolean vSyncEnabled) {
+    private static String surfaceAttribSummary (boolean requestDirectComposition) {
         StringBuilder builder = new StringBuilder("[");
-        if (withSwapInterval) {
-            builder.append("EGL_SWAP_INTERVAL_ANGLE=").append(vSyncEnabled ? 1 : 0);
-        }
         if (requestDirectComposition) {
-            if (builder.length() > 1) builder.append(", ");
             builder.append("EGL_DIRECT_COMPOSITION_ANGLE=EGL_TRUE");
         }
         if (builder.length() == 1) builder.append("none");
