@@ -70,6 +70,7 @@ public class Lwjgl3ApplicationConfiguration extends Lwjgl3WindowConfiguration {
 	boolean angleManualEglSurface;
 	boolean angleFastPresentPath;
 	boolean angleDirectCompositionSurface = true;
+	boolean win32NoRedirectionBitmap;
 	LongConsumer preAngleSurfaceWindowHandleListener;
 
 	int idleFPS = 60;
@@ -139,6 +140,7 @@ public class Lwjgl3ApplicationConfiguration extends Lwjgl3WindowConfiguration {
 		angleManualEglSurface = config.angleManualEglSurface;
 		angleFastPresentPath = config.angleFastPresentPath;
 		angleDirectCompositionSurface = config.angleDirectCompositionSurface;
+		win32NoRedirectionBitmap = config.win32NoRedirectionBitmap;
 		preAngleSurfaceWindowHandleListener = config.preAngleSurfaceWindowHandleListener;
 		idleFPS = config.idleFPS;
 		foregroundFPS = config.foregroundFPS;
@@ -275,6 +277,12 @@ public class Lwjgl3ApplicationConfiguration extends Lwjgl3WindowConfiguration {
 	 * Disable this to test whether ANGLE can use a regular HWND presentation path that may be eligible for Independent Flip. */
 	public void useAngleDirectCompositionSurface (boolean enabled) {
 		this.angleDirectCompositionSurface = enabled;
+	}
+
+	/** Requests {@code WS_EX_NOREDIRECTIONBITMAP} during Win32 HWND creation. This requires a rendering path that supports
+	 * DirectComposition. */
+	public void useWin32NoRedirectionBitmap (boolean enabled) {
+		this.win32NoRedirectionBitmap = enabled;
 	}
 
 	/** Called after GLFW has created and positioned the window, but before ANGLE creates its EGL HWND surface.
