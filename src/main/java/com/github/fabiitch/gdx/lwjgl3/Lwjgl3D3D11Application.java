@@ -81,6 +81,8 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
     private final Sync sync;
     /** Custom GLFW hint provided by the bundled GLFW build (GLFW PR #2889). */
     private static final int GLFW_ANGLE_SURFACE_DIRECT_COMPOSITION = 0x00050004;
+    /** Custom GLFW hint provided by the bundled GLFW build (GLFW PR #2904). */
+    private static final int GLFW_WIN32_NO_REDIRECTION_BITMAP = 0x00025003;
 
     static void initializeGlfw () {
         if (errorCallback == null) {
@@ -508,6 +510,10 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
                     GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, config.gles30ContextMinorVersion);
                 }
             }
+        }
+
+        if (SharedLibraryLoader.os == Os.Windows && config.win32NoRedirectionBitmap) {
+            GLFW.glfwWindowHint(GLFW_WIN32_NO_REDIRECTION_BITMAP, GLFW.GLFW_TRUE);
         }
 
         if (config.transparentFramebuffer) {

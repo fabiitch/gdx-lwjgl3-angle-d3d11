@@ -23,6 +23,10 @@ java {
     }
 }
 
+tasks.withType(JavaCompile).configureEach {
+    options.fork = true
+}
+
 dependencies {
     api "com.badlogicgames.gdx:gdx:${gdxVersionValue}"
     api "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersionValue}"
