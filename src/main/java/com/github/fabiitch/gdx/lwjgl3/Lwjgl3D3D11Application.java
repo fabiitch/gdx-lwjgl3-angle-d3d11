@@ -18,12 +18,10 @@ package com.github.fabiitch.gdx.lwjgl3;
 
 import java.io.File;
 import java.io.PrintStream;
-import java.lang.reflect.Method;
 import java.nio.IntBuffer;
 
 import com.badlogic.gdx.ApplicationLogger;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationLogger;
-import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Clipboard;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3FileHandle;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Files;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Input;
@@ -45,6 +43,8 @@ import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.GLUtil;
 import org.lwjgl.opengl.KHRDebug;
+import org.lwjgl.opengles.GLES;
+import org.lwjgl.opengles.GLES20;
 import org.lwjgl.system.Callback;
 
 import com.badlogic.gdx.Application;
@@ -68,7 +68,7 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
     private final Files files;
     private final Net net;
     private final ObjectMap<String, Preferences> preferences = new ObjectMap<String, Preferences>();
-    private final Lwjgl3Clipboard clipboard;
+    private final Clipboard clipboard;
     private int logLevel = LOG_INFO;
     private ApplicationLogger applicationLogger;
     private volatile boolean running = true;
@@ -143,7 +143,8 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
         Gdx.audio = audio;
         this.files = Gdx.files = createFiles();
         this.net = Gdx.net = new Lwjgl3Net(config);
-        this.clipboard = new Lwjgl3Clipboard();
+        this.clipboard = new DefaultLwjgl3Clipboard(
+                () -> currentWindow == null ? 0L : currentWindow.getWindowHandle());
 
         this.sync = new Sync();
 
@@ -252,6 +253,7 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
     protected void cleanup () {
         Lwjgl3Cursor.disposeSystemCursors();
         audio.dispose();
+        GLFW.glfwSetErrorCallback(null);
         errorCallback.free();
         errorCallback = null;
         if (glDebugCallback != null) {
@@ -578,12 +580,7 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
             GLFW.glfwSwapInterval(config.vSyncEnabled ? 1 : 0);
         }
         if (config.glEmulation == Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32) {
-            try {
-                Class gles = Class.forName("org.lwjgl.opengles.GLES");
-                gles.getMethod("createCapabilities").invoke(gles);
-            } catch (Throwable e) {
-                throw new GdxRuntimeException("Couldn't initialize GLES", e);
-            }
+            GLES.createCapabilities();
         } else {
             GL.createCapabilities();
         }
@@ -633,16 +630,10 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
             String rendererString = GL11.glGetString(GL11.GL_RENDERER);
             glVersion = new GLVersion(Application.ApplicationType.Desktop, versionString, vendorString, rendererString);
         } else {
-            try {
-                Class gles = Class.forName("org.lwjgl.opengles.GLES20");
-                Method getString = gles.getMethod("glGetString", int.class);
-                String versionString = (String)getString.invoke(gles, GL11.GL_VERSION);
-                String vendorString = (String)getString.invoke(gles, GL11.GL_VENDOR);
-                String rendererString = (String)getString.invoke(gles, GL11.GL_RENDERER);
-                glVersion = new GLVersion(Application.ApplicationType.Desktop, versionString, vendorString, rendererString);
-            } catch (Throwable e) {
-                throw new GdxRuntimeException("Couldn't get GLES version string.", e);
-            }
+            String versionString = GLES20.glGetString(GL11.GL_VERSION);
+            String vendorString = GLES20.glGetString(GL11.GL_VENDOR);
+            String rendererString = GLES20.glGetString(GL11.GL_RENDERER);
+            glVersion = new GLVersion(Application.ApplicationType.Desktop, versionString, vendorString, rendererString);
         }
     }
 

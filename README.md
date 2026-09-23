@@ -2,6 +2,10 @@
 
 Standalone LWJGL3/libGDX backend that creates an OpenGL ES context through ANGLE on D3D11 for Windows x64.
 
+The backend targets JDK 25 and LWJGL 3.4.3. LWJGL therefore uses its FFM/Panama
+backend for native downcalls and callback upcalls. JVM launches must allow native
+access with `--enable-native-access=ALL-UNNAMED`.
+
 ## Bundled native runtime
 
 The library embeds its complete native runtime under `windows64/`:
@@ -38,3 +42,11 @@ The bundled DLLs are extracted automatically. To override them for local diagnos
 ```
 
 That directory must contain the same four files.
+
+## GraalVM Native Image
+
+The project includes an automated metadata scenario and Gradle tasks modeled
+after J-NNG's metadata workflow. See [docs/graalvm-native.md](docs/graalvm-native.md)
+for collection and native smoke-build instructions. The LWJGL FFM path works on
+the JVM; the document also records the current GraalVM 25/LWJGL hidden-class AOT
+limit and the tested `unsafe`-classifier Native Image fallback.
