@@ -74,22 +74,34 @@ final class AngleEglContext {
                     EGL_CONTEXT_MINOR_VERSION_KHR, config.gles30ContextMinorVersion,
                     EGL10.EGL_NONE);
             long context = EGL10.eglCreateContext(display, eglConfig, sharedContext, contextAttribs);
+            int contextError = logEglResult("eglCreateContext(ES " + config.gles30ContextMajorVersion + "."
+                    + config.gles30ContextMinorVersion + ")", context != EGL10.EGL_NO_CONTEXT);
             if (context == EGL10.EGL_NO_CONTEXT) {
-                throw new GdxRuntimeException("Couldn't create ANGLE EGL context: " + eglError());
+                throw new GdxRuntimeException("Couldn't create ANGLE EGL context: " + eglErrorName(contextError));
             }
 
             long surface = createWindowSurface(hwnd, config, true);
-            if (surface == EGL10.EGL_NO_SURFACE) surface = createWindowSurface(hwnd, config, false);
+            boolean directCompositionRequired = config.win32NoRedirectionBitmap;
+            if (surface == EGL10.EGL_NO_SURFACE && !directCompositionRequired) {
+                surface = createWindowSurface(hwnd, config, false);
+            }
             if (surface == EGL10.EGL_NO_SURFACE) {
-                EGL10.eglDestroyContext(display, context);
-                throw new GdxRuntimeException("Couldn't create ANGLE EGL window surface: " + eglError());
+                boolean contextDestroyed = EGL10.eglDestroyContext(display, context);
+                logEglResult("eglDestroyContext(after surface failure)", contextDestroyed);
+                throw new GdxRuntimeException("Couldn't create ANGLE EGL "
+                        + (directCompositionRequired ? "DirectComposition " : "")
+                        + "window surface; see the first failing attempt above.");
             }
 
             AngleEglContext angleContext = new AngleEglContext(windowHandle, surface, context);
             contexts.put(windowHandle, angleContext);
             references++;
             angleContext.makeCurrent();
-            EGL11.eglSwapInterval(display, config.vSyncEnabled ? 1 : 0);
+            boolean swapIntervalSet = EGL11.eglSwapInterval(display, config.vSyncEnabled ? 1 : 0);
+            int swapIntervalError = logEglResult("eglSwapInterval(" + (config.vSyncEnabled ? 1 : 0) + ")", swapIntervalSet);
+            if (!swapIntervalSet) {
+                throw new GdxRuntimeException("Couldn't set ANGLE EGL swap interval: " + eglErrorName(swapIntervalError));
+            }
 
             int directCompositionSurface = querySurfaceInt(surface, EGL_DIRECT_COMPOSITION_ANGLE, -1);
             int surfaceWidth = querySurfaceInt(surface, EGL10.EGL_WIDTH, -1);
@@ -137,24 +149,31 @@ final class AngleEglContext {
             }
             if (display == EGL10.EGL_NO_DISPLAY) {
                 display = EGL10.eglGetDisplay(EGL_D3D11_ONLY_DISPLAY_ANGLE);
+                logEglResult("eglGetDisplay(EGL_D3D11_ONLY_DISPLAY_ANGLE)", display != EGL10.EGL_NO_DISPLAY);
                 fastPresentDisplay = false;
             }
             if (display == EGL10.EGL_NO_DISPLAY) throw new GdxRuntimeException("Couldn't get ANGLE EGL display: " + eglError());
 
             IntBuffer major = stack.mallocInt(1);
             IntBuffer minor = stack.mallocInt(1);
-            if (!EGL10.eglInitialize(display, major, minor)) {
+            boolean initialized = EGL10.eglInitialize(display, major, minor);
+            int initializeError = logEglResult("eglInitialize", initialized);
+            if (!initialized) {
                 long failedDisplay = display;
                 display = EGL10.EGL_NO_DISPLAY;
-                throw new GdxRuntimeException("Couldn't initialize ANGLE EGL display: " + eglError(failedDisplay));
+                throw new GdxRuntimeException("Couldn't initialize ANGLE EGL display: " + eglErrorName(initializeError));
             }
+            System.out.println("[ANGLE-D3D11] EGL initialized version=" + major.get(0) + "." + minor.get(0));
 
             EGL.createDisplayCapabilities(display, major.get(0), minor.get(0));
-            if (!EGL14.eglBindAPI(EGL14.EGL_OPENGL_ES_API)) {
-                throw new GdxRuntimeException("Couldn't bind OpenGL ES API for ANGLE EGL: " + eglError());
+            boolean apiBound = EGL14.eglBindAPI(EGL14.EGL_OPENGL_ES_API);
+            int bindApiError = logEglResult("eglBindAPI(EGL_OPENGL_ES_API)", apiBound);
+            if (!apiBound) {
+                throw new GdxRuntimeException("Couldn't bind OpenGL ES API for ANGLE EGL: " + eglErrorName(bindApiError));
             }
 
             displayExtensions = EGL10.eglQueryString(display, EGL10.EGL_EXTENSIONS);
+            logEglResult("eglQueryString(EGL_EXTENSIONS)", displayExtensions != null);
             if (displayExtensions == null) displayExtensions = "";
             if (!hasExtension("EGL_ANGLE_direct_composition")) {
                 throw new GdxRuntimeException("ANGLE EGL display does not expose EGL_ANGLE_direct_composition.");
@@ -176,10 +195,13 @@ final class AngleEglContext {
                     EGL10.EGL_SAMPLES, config.samples,
                     EGL10.EGL_NONE);
 
-            if (!EGL10.eglChooseConfig(display, configAttribs, configs, numConfigs) || numConfigs.get(0) == 0) {
-                throw new GdxRuntimeException("Couldn't choose ANGLE EGL config: " + eglError());
+            boolean configChosen = EGL10.eglChooseConfig(display, configAttribs, configs, numConfigs);
+            int chooseConfigError = logEglResult("eglChooseConfig", configChosen && numConfigs.get(0) > 0);
+            if (!configChosen || numConfigs.get(0) == 0) {
+                throw new GdxRuntimeException("Couldn't choose ANGLE EGL config: " + eglErrorName(chooseConfigError));
             }
             eglConfig = configs.get(0);
+            logChosenConfig();
         }
     }
 
@@ -199,7 +221,10 @@ final class AngleEglContext {
                     EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE,
                     EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
                     EGL10.EGL_NONE);
-            return JNI.callPPP(EGL_PLATFORM_ANGLE_ANGLE, MemoryUtil.NULL, MemoryUtil.memAddress(displayAttribs), function);
+            long result = JNI.callPPP(EGL_PLATFORM_ANGLE_ANGLE, MemoryUtil.NULL, MemoryUtil.memAddress(displayAttribs), function);
+            logEglResult("eglGetPlatformDisplay(ANGLE D3D11"
+                    + (requestFastPresentPath ? ", FAST" : "") + ")", result != EGL10.EGL_NO_DISPLAY);
+            return result;
         }
     }
 
@@ -217,9 +242,11 @@ final class AngleEglContext {
                 surfaceAttribs = stack.ints(EGL10.EGL_NONE);
             }
             long surface = EGL10.eglCreateWindowSurface(display, eglConfig, hwnd, surfaceAttribs);
+            int surfaceError = EGL10.eglGetError();
             System.out.println("[ANGLE-D3D11] eglCreateWindowSurface attempt hwnd=0x" + Long.toHexString(hwnd)
                     + " attrs=" + surfaceAttribSummary(canRequestDirectComposition)
-                    + " result=" + (surface == EGL10.EGL_NO_SURFACE ? "NO_SURFACE " + eglError() : "0x" + Long.toHexString(surface)));
+                    + " result=" + (surface == EGL10.EGL_NO_SURFACE ? "NO_SURFACE" : "0x" + Long.toHexString(surface))
+                    + " eglError=" + eglErrorName(surfaceError));
             return surface;
         }
     }
@@ -236,7 +263,9 @@ final class AngleEglContext {
     private static int querySurfaceInt (long surface, int attribute, int fallback) {
         try (MemoryStack stack = stackPush()) {
             IntBuffer value = stack.mallocInt(1);
-            if (!EGL10.eglQuerySurface(display, surface, attribute, value)) return fallback;
+            boolean queried = EGL10.eglQuerySurface(display, surface, attribute, value);
+            int error = logEglResult("eglQuerySurface(0x" + Integer.toHexString(attribute) + ")", queried);
+            if (!queried || error != EGL10.EGL_SUCCESS) return fallback;
             return value.get(0);
         }
     }
@@ -252,8 +281,10 @@ final class AngleEglContext {
     }
 
     private void makeCurrent () {
-        if (!EGL10.eglMakeCurrent(display, surface, surface, context)) {
-            throw new GdxRuntimeException("Couldn't make ANGLE EGL context current: " + eglError());
+        boolean current = EGL10.eglMakeCurrent(display, surface, surface, context);
+        int makeCurrentError = logEglResult("eglMakeCurrent", current);
+        if (!current) {
+            throw new GdxRuntimeException("Couldn't make ANGLE EGL context current: " + eglErrorName(makeCurrentError));
         }
     }
 
@@ -262,27 +293,36 @@ final class AngleEglContext {
         if (context == null) {
             return;
         }
-        if (!EGL10.eglSwapBuffers(display, context.surface)) {
-            throw new GdxRuntimeException("Couldn't swap ANGLE EGL buffers: " + eglError());
+        boolean swapped = EGL10.eglSwapBuffers(display, context.surface);
+        int swapError = EGL10.eglGetError();
+//        int swapError = logEglResult("eglSwapBuffers", swapped);
+        if (!swapped) {
+            throw new GdxRuntimeException("Couldn't swap ANGLE EGL buffers: " + eglErrorName(swapError));
         }
     }
 
     static synchronized void setSwapInterval (long windowHandle, int interval) {
         if (!contexts.containsKey(windowHandle)) return;
-        EGL11.eglSwapInterval(display, interval);
+        boolean intervalSet = EGL11.eglSwapInterval(display, interval);
+        logEglResult("eglSwapInterval(" + interval + ")", intervalSet);
     }
 
     static synchronized void destroy (long windowHandle) {
         AngleEglContext context = contexts.remove(windowHandle);
         if (context == null) return;
 
-        EGL10.eglMakeCurrent(display, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_CONTEXT);
-        EGL10.eglDestroySurface(display, context.surface);
-        EGL10.eglDestroyContext(display, context.context);
+        boolean detached = EGL10.eglMakeCurrent(display, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_SURFACE,
+                EGL10.EGL_NO_CONTEXT);
+        logEglResult("eglMakeCurrent(detach)", detached);
+        boolean surfaceDestroyed = EGL10.eglDestroySurface(display, context.surface);
+        logEglResult("eglDestroySurface", surfaceDestroyed);
+        boolean contextDestroyed = EGL10.eglDestroyContext(display, context.context);
+        logEglResult("eglDestroyContext", contextDestroyed);
 
         references--;
         if (references == 0) {
-            EGL10.eglTerminate(display);
+            boolean terminated = EGL10.eglTerminate(display);
+            logEglResult("eglTerminate", terminated);
             display = EGL10.EGL_NO_DISPLAY;
             eglConfig = MemoryUtil.NULL;
             displayExtensions = "";
@@ -303,11 +343,42 @@ final class AngleEglContext {
     }
 
     private static String eglError () {
-        return eglError(display);
+        return eglErrorName(EGL10.eglGetError());
     }
 
-    private static String eglError (long ignoredDisplay) {
+    private static int logEglResult (String operation, boolean successful) {
         int error = EGL10.eglGetError();
+        System.out.println("[ANGLE-D3D11] " + operation + " result=" + (successful ? "success" : "failure")
+                + " eglError=" + eglErrorName(error));
+        return error;
+    }
+
+    private static void logChosenConfig () {
+        System.out.println("[ANGLE-D3D11] chosen EGLConfig=0x" + Long.toHexString(eglConfig)
+                + " surfaceType=0x" + Integer.toHexString(queryConfigInt(EGL10.EGL_SURFACE_TYPE))
+                + " renderableType=0x" + Integer.toHexString(queryConfigInt(EGL14.EGL_RENDERABLE_TYPE))
+                + " rgba=" + queryConfigInt(EGL10.EGL_RED_SIZE) + "/" + queryConfigInt(EGL10.EGL_GREEN_SIZE)
+                + "/" + queryConfigInt(EGL10.EGL_BLUE_SIZE) + "/" + queryConfigInt(EGL10.EGL_ALPHA_SIZE)
+                + " depth=" + queryConfigInt(EGL10.EGL_DEPTH_SIZE)
+                + " stencil=" + queryConfigInt(EGL10.EGL_STENCIL_SIZE)
+                + " samples=" + queryConfigInt(EGL10.EGL_SAMPLES));
+    }
+
+    private static int queryConfigInt (int attribute) {
+        try (MemoryStack stack = stackPush()) {
+            IntBuffer value = stack.mallocInt(1);
+            boolean queried = EGL10.eglGetConfigAttrib(display, eglConfig, attribute, value);
+            int error = EGL10.eglGetError();
+            System.out.println("[ANGLE-D3D11] eglGetConfigAttrib(0x" + Integer.toHexString(attribute)
+                    + ") result=" + (queried ? "success" : "failure") + " eglError=" + eglErrorName(error));
+            if (!queried || error != EGL10.EGL_SUCCESS) {
+                return -1;
+            }
+            return value.get(0);
+        }
+    }
+
+    private static String eglErrorName (int error) {
         switch (error) {
         case EGL10.EGL_SUCCESS:
             return "EGL_SUCCESS";
