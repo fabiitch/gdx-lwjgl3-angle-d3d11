@@ -1,17 +1,20 @@
 package com.github.fabiitch.gdx.lwjgl3;
 
 import com.badlogic.gdx.utils.GdxRuntimeException;
-import com.sun.jna.NativeLibrary;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.egl.EGL;
 import org.lwjgl.egl.EGL10;
 import org.lwjgl.egl.EGL11;
 import org.lwjgl.egl.EGL14;
-import org.lwjgl.system.Configuration;
-import org.lwjgl.system.JNI;
+import org.lwjgl.glfw.GLFWNativeWin32;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
 import java.nio.IntBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -118,13 +121,7 @@ final class AngleEglContext {
     }
 
     private static long getWin32WindowHandle (long windowHandle) {
-        String glfwLibraryPath = Configuration.GLFW_LIBRARY_NAME.get();
-        if (glfwLibraryPath == null || glfwLibraryPath.isBlank()) {
-            throw new GdxRuntimeException("The GLFW library path has not been configured.");
-        }
-        return NativeLibrary.getInstance(glfwLibraryPath)
-                .getFunction("glfwGetWin32Window")
-                .invokeLong(new Object[] {windowHandle});
+        return GLFWNativeWin32.glfwGetWin32Window(windowHandle);
     }
 
     private static void initializeDisplay (Lwjgl3ApplicationConfiguration config) {
@@ -199,7 +196,22 @@ final class AngleEglContext {
                     EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE,
                     EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
                     EGL10.EGL_NONE);
-            return JNI.callPPP(EGL_PLATFORM_ANGLE_ANGLE, MemoryUtil.NULL, MemoryUtil.memAddress(displayAttribs), function);
+            MethodHandle getPlatformDisplay = Linker.nativeLinker().downcallHandle(
+                    MemorySegment.ofAddress(function),
+                    FunctionDescriptor.of(
+                            ValueLayout.ADDRESS,
+                            ValueLayout.JAVA_INT,
+                            ValueLayout.ADDRESS,
+                            ValueLayout.ADDRESS));
+            try {
+                MemorySegment result = (MemorySegment)getPlatformDisplay.invokeExact(
+                        EGL_PLATFORM_ANGLE_ANGLE,
+                        MemorySegment.NULL,
+                        MemorySegment.ofAddress(MemoryUtil.memAddress(displayAttribs)));
+                return result.address();
+            } catch (Throwable t) {
+                throw new GdxRuntimeException("Couldn't call eglGetPlatformDisplay through FFM.", t);
+            }
         }
     }
 

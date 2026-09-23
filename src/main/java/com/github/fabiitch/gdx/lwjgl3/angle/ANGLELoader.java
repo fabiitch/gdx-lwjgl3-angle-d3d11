@@ -23,7 +23,6 @@ import org.lwjgl.opengles.GLES;
 import org.lwjgl.system.Configuration;
 
 import java.io.*;
-import java.lang.reflect.Method;
 import java.util.Random;
 import java.util.UUID;
 import java.util.zip.CRC32;
@@ -165,17 +164,7 @@ public class ANGLELoader {
     }
 
     private static boolean canExecute (File file) {
-        try {
-            Method canExecute = File.class.getMethod("canExecute");
-            if ((Boolean)canExecute.invoke(file)) return true;
-
-            Method setExecutable = File.class.getMethod("setExecutable", boolean.class, boolean.class);
-            setExecutable.invoke(file, true, false);
-
-            return (Boolean)canExecute.invoke(file);
-        } catch (Exception ignored) {
-        }
-        return false;
+        return file.canExecute() || file.setExecutable(true, false) && file.canExecute();
     }
 
     private static String resourceCrc (String sourcePath) {

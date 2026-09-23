@@ -5,6 +5,7 @@ plugins {
 def projectName = 'gdx-lwjgl3-angle-d3d11'
 def gdxVersionValue = providers.gradleProperty('gdxVersion').getOrElse('1.14.2')
 def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').getOrElse('3.3.3')
+def graalLwjglBackend = providers.gradleProperty('graalLwjglBackend').getOrElse('ffm')
 def nativeLibsDir = file('libs')
 def bundledWindowsNativeNames = ['d3dcompiler_47.dll', 'glfw3.dll', 'libEGL.dll', 'libGLESv2.dll']
 
@@ -27,17 +28,34 @@ tasks.withType(JavaCompile).configureEach {
     options.fork = true
 }
 
+configurations {
+    lwjglUnsafeCore
+}
+
 dependencies {
     api "com.badlogicgames.gdx:gdx:${gdxVersionValue}"
     api "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersionValue}"
 
-    implementation "net.java.dev.jna:jna:5.18.1"
     implementation "org.lwjgl:lwjgl-egl:${lwjgl3VersionValue}"
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}"
+    // Provides LWJGL's OpenGL ES loader support. API downcalls/upcalls still use FFM on JDK 25.
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}:natives-windows"
 
     // libGDX loads gdx64.dll through its SharedLibraryLoader at runtime.
     runtimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersionValue}:natives-desktop"
+
+    lwjglUnsafeCore "org.lwjgl:lwjgl:${lwjgl3VersionValue}:unsafe"
+}
+
+// gdx-backend-lwjgl3 currently declares an older LWJGL release. Keep every
+// LWJGL module on the FFM-capable release selected above.
+configurations.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.lwjgl') {
+            details.useVersion lwjgl3VersionValue
+            details.because 'LWJGL 3.4+ provides the JDK 25 FFM backend'
+        }
+    }
 }
 
 tasks.register('verifyBundledWindowsNatives') {
@@ -64,6 +82,175 @@ tasks.named('processResources') {
 // The two classes under src/test are executable samples, not JUnit tests.
 tasks.named('test') {
     failOnNoDiscoveredTests = false
+}
+
+def graalVmMetadataOutputDirectory = layout.buildDirectory.dir('native/agent-output')
+def bundledGraalVmMetadataDirectory = layout.projectDirectory.dir(
+        'src/main/resources/META-INF/native-image/com.github.fabiitch.gdx.lwjgl3/gdx-lwjgl3-angle-d3d11'
+)
+
+def nativeImageAgentCandidates = [
+        'bin/native-image-agent.dll',
+        'lib/native-image-agent.dll',
+        'lib/libnative-image-agent.so',
+        'lib/libnative-image-agent.dylib',
+]
+
+def nativeImageExecutableCandidates = [
+        'bin/native-image.cmd',
+        'bin/native-image.exe',
+        'bin/native-image',
+]
+
+def resolveGraalVmHome = {
+    String configuredHome = providers.environmentVariable('GRAALVM_HOME').orNull
+    File home = configuredHome == null || configuredHome.isBlank()
+            ? file(System.getProperty('java.home'))
+            : file(configuredHome)
+    home.toPath().toAbsolutePath().normalize().toFile()
+}
+
+def resolveGraalVmTool = { File home, List<String> candidates, String toolName ->
+    File tool = candidates
+            .collect { relativePath -> new File(home, relativePath) }
+            .find { candidate -> candidate.isFile() }
+    if (tool == null) {
+        throw new GradleException(
+                "${toolName} not found under ${home}. " +
+                        'Set GRAALVM_HOME to a GraalVM JDK 25 installation.'
+        )
+    }
+    tool
+}
+
+def metadataAppMainClass = 'com.github.fabiitch.gdx.lwjgl3.test.GraalVmNativeMetadataApp'
+if (!(graalLwjglBackend in ['ffm', 'unsafe'])) {
+    throw new GradleException("graalLwjglBackend must be 'ffm' or 'unsafe', got '${graalLwjglBackend}'")
+}
+
+def graalRuntimeClasspath = {
+    if (graalLwjglBackend == 'ffm') {
+        return sourceSets.test.runtimeClasspath
+    }
+    files(
+            sourceSets.test.runtimeClasspath.filter {
+                it.name != "lwjgl-${lwjgl3VersionValue}.jar"
+            },
+            configurations.lwjglUnsafeCore
+    )
+}
+
+tasks.register('graalVmMetadataApp', JavaExec) {
+    group = 'verification'
+    description = 'Exercises the GLFW, EGL, GLES and callback paths used by the backend.'
+    dependsOn testClasses
+    classpath = graalRuntimeClasspath()
+    mainClass = metadataAppMainClass
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+    if (graalLwjglBackend == 'ffm') {
+        jvmArgs '-Dorg.lwjgl.system.memoryBackend=ffm'
+    }
+}
+
+tasks.register('generateGraalVmMetadata', Exec) {
+    group = 'verification'
+    description = 'Generates GraalVM reachability metadata with native-image-agent.'
+    dependsOn testClasses
+    outputs.dir(graalVmMetadataOutputDirectory)
+    outputs.upToDateWhen { false }
+
+    doFirst {
+        File graalVmHome = resolveGraalVmHome()
+        boolean windows = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')
+        File javaExecutable = new File(graalVmHome, windows ? 'bin/java.exe' : 'bin/java')
+        File nativeImageAgent = resolveGraalVmTool(graalVmHome, nativeImageAgentCandidates, 'native-image-agent')
+        File metadataDirectory = graalVmMetadataOutputDirectory.get().asFile
+
+        if (!javaExecutable.isFile()) {
+            throw new GradleException("Java launcher not found under GraalVM home: ${javaExecutable}")
+        }
+
+        delete metadataDirectory
+        metadataDirectory.mkdirs()
+
+        List<String> agentArguments = [javaExecutable.absolutePath, '--enable-native-access=ALL-UNNAMED']
+        if (graalLwjglBackend == 'ffm') {
+            agentArguments.add('-Dorg.lwjgl.system.memoryBackend=ffm')
+        }
+        agentArguments.addAll([
+                "-agentpath:${nativeImageAgent.absolutePath}=config-output-dir=${metadataDirectory.absolutePath},experimental-class-define-support",
+                '-cp', graalRuntimeClasspath().asPath, metadataAppMainClass
+        ])
+        commandLine(agentArguments)
+
+        logger.lifecycle("Using GraalVM home: ${graalVmHome}")
+        logger.lifecycle("Writing GraalVM metadata to: ${metadataDirectory}")
+    }
+
+    doLast {
+        File metadataFile = graalVmMetadataOutputDirectory.get()
+                .file('reachability-metadata.json')
+                .asFile
+        if (!metadataFile.isFile()) {
+            throw new GradleException("GraalVM metadata was not generated: ${metadataFile}")
+        }
+    }
+}
+
+tasks.register('refreshGraalVmMetadata', Sync) {
+    group = 'verification'
+    description = 'Generates and installs the backend GraalVM reachability metadata.'
+    dependsOn tasks.named('generateGraalVmMetadata')
+    from(graalVmMetadataOutputDirectory)
+    into(bundledGraalVmMetadataDirectory)
+
+    doLast {
+        File metadataFile = bundledGraalVmMetadataDirectory.file('reachability-metadata.json').asFile
+        if (!metadataFile.isFile()) {
+            throw new GradleException("Bundled GraalVM metadata was not written: ${metadataFile}")
+        }
+        logger.lifecycle("Updated bundled GraalVM metadata: ${metadataFile}")
+    }
+}
+
+tasks.register('nativeImageMetadataSmoke', Exec) {
+    group = 'verification'
+    description = 'Builds the metadata scenario as a GraalVM Native Image executable.'
+    dependsOn tasks.named('refreshGraalVmMetadata')
+    dependsOn testClasses
+
+    doFirst {
+        File graalVmHome = resolveGraalVmHome()
+        File nativeImage = resolveGraalVmTool(graalVmHome, nativeImageExecutableCandidates, 'native-image')
+        File outputDirectory = layout.buildDirectory.dir('native/metadata-smoke').get().asFile
+        File metadataDirectory = bundledGraalVmMetadataDirectory.asFile
+        File argumentFile = new File(outputDirectory, 'native-image.args')
+        outputDirectory.mkdirs()
+
+        List<String> nativeImageArguments = [
+                '--no-fallback',
+                '--enable-native-access=ALL-UNNAMED',
+                '--exact-reachability-metadata',
+                "-H:ConfigurationFileDirectories=${metadataDirectory.absolutePath}",
+                '-cp',
+                graalRuntimeClasspath().asPath,
+                '-o',
+                new File(outputDirectory, 'gdx-angle-metadata-smoke').absolutePath,
+                metadataAppMainClass
+        ]
+        if (graalLwjglBackend == 'ffm') {
+            nativeImageArguments.addAll(3, [
+                    '-Dorg.lwjgl.system.memoryBackend=ffm',
+                    '--initialize-at-build-time=org.lwjgl.system',
+                    '--initialize-at-run-time=org.lwjgl.system.MemoryBackendUnsafe,org.lwjgl.system.MemoryBackendUnsafeLegacy,org.lwjgl.system.MemoryBackendUnsafeLegacy22'
+            ])
+        }
+        argumentFile.text = nativeImageArguments.collect { argument ->
+            '"' + argument.replace('\\', '\\\\').replace('"', '\\"') + '"'
+        }.join(System.lineSeparator())
+
+        commandLine(nativeImage.absolutePath, "@${argumentFile.absolutePath}")
+    }
 }
 
 jar {
