@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.PrintStream;
 import java.lang.reflect.Method;
 import java.nio.IntBuffer;
+import java.util.concurrent.locks.LockSupport;
 
 import com.badlogic.gdx.ApplicationLogger;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationLogger;
@@ -72,6 +73,7 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
     private int logLevel = LOG_INFO;
     private ApplicationLogger applicationLogger;
     private volatile boolean running = true;
+    private volatile Thread loopThread;
     private final Array<Runnable> runnables = new Array<Runnable>();
     private final Array<Runnable> executedRunnables = new Array<Runnable>();
     private final Array<LifecycleListener> lifecycleListeners = new Array<LifecycleListener>();
@@ -159,12 +161,14 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
             else
                 throw new GdxRuntimeException(t);
         } finally {
+            loopThread = null;
             cleanup();
         }
     }
 
     protected void loop () {
         Array<Lwjgl3Window> closedWindows = new Array<Lwjgl3Window>();
+        loopThread = Thread.currentThread();
         while (running && windows.size > 0) {
             // FIXME put it on a separate thread
             audio.update();
@@ -223,17 +227,14 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
             }
 
             if (!haveWindowsRendered) {
-                // Sleep a few milliseconds in case no rendering was requested
-                // with continuous rendering disabled.
-                try {
-                    Thread.sleep(1000 / config.idleFPS);
-                } catch (InterruptedException e) {
-                    // ignore
-                }
+                // Park without polling. postRunnable/exit leave a permit and wake
+                // this loop immediately, even with continuous rendering disabled.
+                LockSupport.parkNanos(1_000_000_000L / Math.max(1, config.idleFPS));
             } else if (targetFramerate > 0) {
                 sync.sync(targetFramerate); // sleep as needed to meet the target framerate
             }
         }
+        loopThread = null;
     }
 
     protected void cleanupWindows () {
@@ -383,11 +384,20 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
         synchronized (runnables) {
             runnables.add(runnable);
         }
+        wakeUp();
+    }
+
+    void wakeUp () {
+        Thread thread = loopThread;
+        if (thread != null) {
+            LockSupport.unpark(thread);
+        }
     }
 
     @Override
     public void exit () {
         running = false;
+        wakeUp();
     }
 
     @Override
