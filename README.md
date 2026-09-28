@@ -38,3 +38,9 @@ The bundled DLLs are extracted automatically. To override them for local diagnos
 ```
 
 That directory must contain the same four files.
+
+## Event-driven idle loop
+
+With continuous rendering disabled, the application loop parks at the
+configured idle rate. Posting an application or window runnable now unparks it
+immediately; queued GLFW work therefore does not wait for the next idle tick.

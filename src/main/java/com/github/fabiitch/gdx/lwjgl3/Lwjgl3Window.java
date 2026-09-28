@@ -239,6 +239,9 @@ public class Lwjgl3Window implements Disposable {
         synchronized (runnables) {
             runnables.add(runnable);
         }
+        if (application instanceof Lwjgl3D3D11Application d3d11Application) {
+            d3d11Application.wakeUp();
+        }
     }
 
     /** Sets the position of the window in logical coordinates. All monitors span a virtual surface together. The coordinates are
