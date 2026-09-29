@@ -15,6 +15,32 @@ d3dcompiler_47.dll
 
 They are x64 Release DLLs. No sibling `angle`, `glfw` or `JnaWinTools` checkout is required to build or consume this project.
 
+The Win32 `HWND` used for manual ANGLE surface creation is obtained directly
+from the bundled GLFW DLL through Java 25 FFM. The backend does not depend on
+JNA. JVM launches must enable native access for unnamed modules:
+
+```text
+--enable-native-access=ALL-UNNAMED
+```
+
+## GraalVM Native Image metadata
+
+This library owns only the metadata for its bundled native resources and its
+`glfwGetWin32Window` FFM downcall. Metadata for other VoidGlass libraries or
+for the Overlay application must remain in their respective projects.
+
+Generate the raw tracing-agent output with:
+
+```powershell
+$env:GRAALVM_HOME = 'C:\path\to\graalvm-jdk-25'
+.\gradlew.bat refreshGraalVmMetadata
+```
+
+Raw output is written to `build/native/agent-output`. The refresh task discards
+test-harness, JDK and dependency metadata, then bundles only the library's four
+native resources and its FFM downcall under
+`src/main/resources/META-INF/native-image/com.github.fabiitch.gdx.lwjgl3/gdx-lwjgl3-angle-d3d11`.
+
 ## Usage
 
 ```java

@@ -1,0 +1,26 @@
+{
+    "resources": [
+        {
+            "glob": "windows64/d3dcompiler_47.dll"
+        },
+        {
+            "glob": "windows64/glfw3.dll"
+        },
+        {
+            "glob": "windows64/libEGL.dll"
+        },
+        {
+            "glob": "windows64/libGLESv2.dll"
+        }
+    ],
+    "foreign": {
+        "downcalls": [
+            {
+                "returnType": "void*",
+                "parameterTypes": [
+                    "void*"
+                ]
+            }
+        ]
+    }
+}
