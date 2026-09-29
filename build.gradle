@@ -1,3 +1,6 @@
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+
 plugins {
     id 'java-library'
 }
@@ -31,13 +34,16 @@ dependencies {
     api "com.badlogicgames.gdx:gdx:${gdxVersionValue}"
     api "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersionValue}"
 
-    implementation "net.java.dev.jna:jna:5.18.1"
     implementation "org.lwjgl:lwjgl-egl:${lwjgl3VersionValue}"
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}"
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}:natives-windows"
 
     // libGDX loads gdx64.dll through its SharedLibraryLoader at runtime.
     runtimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersionValue}:natives-desktop"
+
+    testImplementation platform('org.junit:junit-bom:6.0.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.register('verifyBundledWindowsNatives') {
@@ -61,9 +67,132 @@ tasks.named('processResources') {
     }
 }
 
-// The two classes under src/test are executable samples, not JUnit tests.
 tasks.named('test') {
-    failOnNoDiscoveredTests = false
+    useJUnitPlatform()
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+def graalVmMetadataOutputDirectory = layout.buildDirectory.dir('native/agent-output')
+def bundledGraalVmMetadataDirectory = layout.projectDirectory.dir(
+        'src/main/resources/META-INF/native-image/com.github.fabiitch.gdx.lwjgl3/gdx-lwjgl3-angle-d3d11'
+)
+def bundledGraalVmMetadataFile = bundledGraalVmMetadataDirectory.file(
+        'reachability-metadata.json'
+)
+def nativeImageAgentCandidates = [
+        'bin/native-image-agent.dll',
+        'lib/native-image-agent.dll',
+        'lib/libnative-image-agent.so',
+        'lib/libnative-image-agent.dylib',
+]
+
+def resolveGraalVmHome = {
+    String configuredHome = providers.environmentVariable('GRAALVM_HOME').orNull
+    File home = configuredHome == null || configuredHome.isBlank()
+            ? file(System.getProperty('java.home'))
+            : file(configuredHome)
+    home.toPath().toAbsolutePath().normalize().toFile()
+}
+
+def resolveNativeImageAgent = { File home ->
+    File agent = nativeImageAgentCandidates
+            .collect { relativePath -> new File(home, relativePath) }
+            .find { candidate -> candidate.isFile() }
+    if (agent == null) {
+        throw new GradleException(
+                "native-image-agent not found under ${home}. " +
+                        'Set GRAALVM_HOME to a GraalVM JDK 25 installation.'
+        )
+    }
+    agent
+}
+
+tasks.register('generateGraalVmMetadata', Exec) {
+    group = 'verification'
+    description = 'Generates raw GraalVM metadata for this library GLFW FFM binding.'
+    dependsOn testClasses
+    outputs.file(graalVmMetadataOutputDirectory.map {
+        it.file('reachability-metadata.json')
+    })
+    outputs.upToDateWhen { false }
+
+    doFirst {
+        File graalVmHome = resolveGraalVmHome()
+        File javaExecutable = new File(graalVmHome, 'bin/java.exe')
+        File nativeImageAgent = resolveNativeImageAgent(graalVmHome)
+        File metadataDirectory = graalVmMetadataOutputDirectory.get().asFile
+        if (!javaExecutable.isFile()) {
+            throw new GradleException("GraalVM java executable not found: ${javaExecutable}")
+        }
+
+        delete metadataDirectory
+        metadataDirectory.mkdirs()
+
+        commandLine(
+                javaExecutable.absolutePath,
+                '--enable-native-access=ALL-UNNAMED',
+                "-agentpath:${nativeImageAgent.absolutePath}=config-output-dir=${metadataDirectory.absolutePath}",
+                '-cp',
+                sourceSets.test.runtimeClasspath.asPath,
+                'com.github.fabiitch.gdx.lwjgl3.GraalVmMetadataApp'
+        )
+        logger.lifecycle("Using GraalVM home: ${graalVmHome}")
+        logger.lifecycle("Writing raw GraalVM metadata to: ${metadataDirectory}")
+    }
+
+    doLast {
+        File metadataFile = graalVmMetadataOutputDirectory.get()
+                .file('reachability-metadata.json')
+                .asFile
+        if (!metadataFile.isFile()) {
+            throw new GradleException("GraalVM metadata was not generated: ${metadataFile}")
+        }
+    }
+}
+
+tasks.register('refreshGraalVmMetadata') {
+    group = 'verification'
+    description = 'Installs only this library FFM and native-resource metadata.'
+    dependsOn tasks.named('generateGraalVmMetadata')
+    inputs.file(graalVmMetadataOutputDirectory.map {
+        it.file('reachability-metadata.json')
+    })
+    outputs.file(bundledGraalVmMetadataFile)
+
+    doLast {
+        File rawMetadataFile = graalVmMetadataOutputDirectory.get()
+                .file('reachability-metadata.json')
+                .asFile
+        Map rawMetadata = (Map)new JsonSlurper().parse(rawMetadataFile)
+        List downcalls = (List)((Map)rawMetadata.foreign)?.downcalls
+        boolean hasGlfwDowncall = downcalls != null && downcalls.any { downcall ->
+            downcall.returnType == 'void*' && downcall.parameterTypes == ['void*']
+        }
+        if (!hasGlfwDowncall) {
+            throw new GradleException(
+                    'Tracing output does not contain the expected glfwGetWin32Window downcall.'
+            )
+        }
+
+        Map curatedMetadata = [
+                resources: bundledWindowsNativeNames.collect { nativeName ->
+                    [glob: "windows64/${nativeName}"]
+                },
+                foreign: [
+                        downcalls: [[
+                                returnType: 'void*',
+                                parameterTypes: ['void*'],
+                        ]],
+                ],
+        ]
+        File bundledFile = bundledGraalVmMetadataFile.asFile
+        bundledFile.parentFile.mkdirs()
+        bundledFile.setText(
+                JsonOutput.prettyPrint(JsonOutput.toJson(curatedMetadata)) + System.lineSeparator(),
+                'UTF-8'
+        )
+        logger.lifecycle("Updated library-only GraalVM metadata: ${bundledFile}")
+    }
 }
 
 jar {

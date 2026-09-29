@@ -1,13 +1,11 @@
 package com.github.fabiitch.gdx.lwjgl3;
 
 import com.badlogic.gdx.utils.GdxRuntimeException;
-import com.sun.jna.NativeLibrary;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.egl.EGL;
 import org.lwjgl.egl.EGL10;
 import org.lwjgl.egl.EGL11;
 import org.lwjgl.egl.EGL14;
-import org.lwjgl.system.Configuration;
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -130,13 +128,7 @@ final class AngleEglContext {
     }
 
     private static long getWin32WindowHandle (long windowHandle) {
-        String glfwLibraryPath = Configuration.GLFW_LIBRARY_NAME.get();
-        if (glfwLibraryPath == null || glfwLibraryPath.isBlank()) {
-            throw new GdxRuntimeException("The GLFW library path has not been configured.");
-        }
-        return NativeLibrary.getInstance(glfwLibraryPath)
-                .getFunction("glfwGetWin32Window")
-                .invokeLong(new Object[] {windowHandle});
+        return GlfwWin32Ffm.getWindowHandle(windowHandle);
     }
 
     private static void initializeDisplay (Lwjgl3ApplicationConfiguration config) {
