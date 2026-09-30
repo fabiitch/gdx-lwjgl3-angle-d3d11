@@ -47,6 +47,8 @@ import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.GLUtil;
 import org.lwjgl.opengl.KHRDebug;
 import org.lwjgl.system.Callback;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.ApplicationListener;
@@ -62,6 +64,8 @@ import com.badlogic.gdx.backends.lwjgl3.audio.mock.MockAudio;
 import com.badlogic.gdx.math.GridPoint2;
 
 public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
+    private static final Logger LOGGER = LoggerFactory.getLogger(Lwjgl3D3D11Application.class);
+
     private final Lwjgl3ApplicationConfiguration config;
     final Array<Lwjgl3Window> windows = new Array<Lwjgl3Window>();
     private volatile Lwjgl3Window currentWindow;
@@ -90,7 +94,8 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
         if (errorCallback == null) {
             if (SharedLibraryLoader.os == Os.Windows) loadANGLE();
             Lwjgl3NativesLoader.load();
-            errorCallback = GLFWErrorCallback.createPrint(Lwjgl3ApplicationConfiguration.errorStream);
+            errorCallback = GLFWErrorCallback.create((error, description) ->
+                    LOGGER.error("[GLFW] error={} description={}", error, GLFWErrorCallback.getDescription(description)));
             GLFW.glfwSetErrorCallback(errorCallback);
             if (SharedLibraryLoader.os == Os.Windows)
                 GLFW.glfwInitHint(GLFW.GLFW_ANGLE_PLATFORM_TYPE, GLFW.GLFW_ANGLE_PLATFORM_TYPE_D3D11);
