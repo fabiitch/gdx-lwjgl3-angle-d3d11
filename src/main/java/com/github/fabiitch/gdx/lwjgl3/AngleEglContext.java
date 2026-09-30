@@ -9,6 +9,8 @@ import org.lwjgl.egl.EGL14;
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.IntBuffer;
 import java.util.HashMap;
@@ -17,6 +19,8 @@ import java.util.Map;
 import static org.lwjgl.system.MemoryStack.stackPush;
 
 final class AngleEglContext {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AngleEglContext.class);
+
     private static final int EGL_PLATFORM_ANGLE_ANGLE = 0x3202;
     private static final int EGL_PLATFORM_ANGLE_TYPE_ANGLE = 0x3203;
     private static final int EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE = 0x3208;
@@ -104,17 +108,17 @@ final class AngleEglContext {
             int directCompositionSurface = querySurfaceInt(surface, EGL_DIRECT_COMPOSITION_ANGLE, -1);
             int surfaceWidth = querySurfaceInt(surface, EGL10.EGL_WIDTH, -1);
             int surfaceHeight = querySurfaceInt(surface, EGL10.EGL_HEIGHT, -1);
-            System.out.println("[ANGLE-D3D11] EGL manual surface = HWND"
+            LOGGER.info("[ANGLE-D3D11] EGL manual surface = HWND"
                     + (fastPresentDisplay ? " fastPresentPath" : "")
                     + " directCompositionRequest=" + config.angleDirectCompositionSurface
                     + " directCompositionQuery=" + directCompositionSurface
                     + " surface=" + surfaceWidth + "x" + surfaceHeight);
-            System.out.println("[ANGLE-D3D11] EGL extensions: directComposition="
+            LOGGER.info("[ANGLE-D3D11] EGL extensions: directComposition="
                     + hasExtension("EGL_ANGLE_direct_composition") + ", experimentalPresentPath="
                     + hasExtension("EGL_ANGLE_experimental_present_path"));
-            System.out.println("[ANGLE-D3D11] Swapchain evidence: EGL exposes DirectComposition surface state only; "
+            LOGGER.info("[ANGLE-D3D11] Swapchain evidence: EGL exposes DirectComposition surface state only; "
                     + "IDXGISwapChain/DXGI_SWAP_CHAIN_DESC/swapEffect are not exposed by ANGLE EGL.");
-            System.out.println("[ANGLE-D3D11] Swapchain evidence: use PresentMon/ETW or patch ANGLE native swapchain creation "
+            LOGGER.info("[ANGLE-D3D11] Swapchain evidence: use PresentMon/ETW or patch ANGLE native swapchain creation "
                     + "to log CreateSwapChainForHwnd/CreateSwapChainForComposition descriptors.");
         }
     }
@@ -128,7 +132,7 @@ final class AngleEglContext {
     }
 
     private static long getWin32WindowHandle (long windowHandle) {
-        return GlfwWin32Ffm.getWindowHandle(windowHandle);
+        return Lwjgl3Win32.getWindowHandle(windowHandle);
     }
 
     private static void initializeDisplay (Lwjgl3ApplicationConfiguration config) {
@@ -155,7 +159,7 @@ final class AngleEglContext {
                 display = EGL10.EGL_NO_DISPLAY;
                 throw new GdxRuntimeException("Couldn't initialize ANGLE EGL display: " + eglErrorName(initializeError));
             }
-            System.out.println("[ANGLE-D3D11] EGL initialized version=" + major.get(0) + "." + minor.get(0));
+            LOGGER.info("[ANGLE-D3D11] EGL initialized version={}.{}", major.get(0), minor.get(0));
 
             EGL.createDisplayCapabilities(display, major.get(0), minor.get(0));
             boolean apiBound = EGL14.eglBindAPI(EGL14.EGL_OPENGL_ES_API);
@@ -235,10 +239,15 @@ final class AngleEglContext {
             }
             long surface = EGL10.eglCreateWindowSurface(display, eglConfig, hwnd, surfaceAttribs);
             int surfaceError = EGL10.eglGetError();
-            System.out.println("[ANGLE-D3D11] eglCreateWindowSurface attempt hwnd=0x" + Long.toHexString(hwnd)
+            String result = surface == EGL10.EGL_NO_SURFACE ? "NO_SURFACE" : "0x" + Long.toHexString(surface);
+            String message = "[ANGLE-D3D11] eglCreateWindowSurface attempt hwnd=0x" + Long.toHexString(hwnd)
                     + " attrs=" + surfaceAttribSummary(canRequestDirectComposition)
-                    + " result=" + (surface == EGL10.EGL_NO_SURFACE ? "NO_SURFACE" : "0x" + Long.toHexString(surface))
-                    + " eglError=" + eglErrorName(surfaceError));
+                    + " result=" + result + " eglError=" + eglErrorName(surfaceError);
+            if (surface == EGL10.EGL_NO_SURFACE) {
+                LOGGER.error(message);
+            } else {
+                LOGGER.info(message);
+            }
             return surface;
         }
     }
@@ -340,13 +349,18 @@ final class AngleEglContext {
 
     private static int logEglResult (String operation, boolean successful) {
         int error = EGL10.eglGetError();
-        System.out.println("[ANGLE-D3D11] " + operation + " result=" + (successful ? "success" : "failure")
-                + " eglError=" + eglErrorName(error));
+        String message = "[ANGLE-D3D11] " + operation + " result=" + (successful ? "success" : "failure")
+                + " eglError=" + eglErrorName(error);
+        if (successful) {
+            LOGGER.info(message);
+        } else {
+            LOGGER.error(message);
+        }
         return error;
     }
 
     private static void logChosenConfig () {
-        System.out.println("[ANGLE-D3D11] chosen EGLConfig=0x" + Long.toHexString(eglConfig)
+        LOGGER.info("[ANGLE-D3D11] chosen EGLConfig=0x" + Long.toHexString(eglConfig)
                 + " surfaceType=0x" + Integer.toHexString(queryConfigInt(EGL10.EGL_SURFACE_TYPE))
                 + " renderableType=0x" + Integer.toHexString(queryConfigInt(EGL14.EGL_RENDERABLE_TYPE))
                 + " rgba=" + queryConfigInt(EGL10.EGL_RED_SIZE) + "/" + queryConfigInt(EGL10.EGL_GREEN_SIZE)
@@ -361,8 +375,13 @@ final class AngleEglContext {
             IntBuffer value = stack.mallocInt(1);
             boolean queried = EGL10.eglGetConfigAttrib(display, eglConfig, attribute, value);
             int error = EGL10.eglGetError();
-            System.out.println("[ANGLE-D3D11] eglGetConfigAttrib(0x" + Integer.toHexString(attribute)
-                    + ") result=" + (queried ? "success" : "failure") + " eglError=" + eglErrorName(error));
+            String message = "[ANGLE-D3D11] eglGetConfigAttrib(0x" + Integer.toHexString(attribute)
+                    + ") result=" + (queried ? "success" : "failure") + " eglError=" + eglErrorName(error);
+            if (queried && error == EGL10.EGL_SUCCESS) {
+                LOGGER.info(message);
+            } else {
+                LOGGER.error(message);
+            }
             if (!queried || error != EGL10.EGL_SUCCESS) {
                 return -1;
             }

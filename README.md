@@ -23,6 +23,11 @@ JNA. JVM launches must enable native access for unnamed modules:
 --enable-native-access=ALL-UNNAMED
 ```
 
+Consumers that need the native handle must use
+`Lwjgl3Win32.getWindowHandle(glfwWindowHandle)`. This resolves only
+`glfwGetWin32Window` from the bundled DLL and does not use JNA or LWJGL's
+all-at-once `GLFWNativeWin32` binding.
+
 ## GraalVM Native Image metadata
 
 This library owns only the metadata for its bundled native resources and its
@@ -70,3 +75,8 @@ That directory must contain the same four files.
 With continuous rendering disabled, the application loop parks at the
 configured idle rate. Posting an application or window runnable now unparks it
 immediately; queued GLFW work therefore does not wait for the next idle tick.
+
+## Logging
+
+ANGLE/EGL initialization diagnostics and GLFW errors are emitted through SLF4J.
+Applications provide the SLF4J binding; this backend does not bundle one.

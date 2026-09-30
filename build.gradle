@@ -34,6 +34,7 @@ dependencies {
     api "com.badlogicgames.gdx:gdx:${gdxVersionValue}"
     api "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersionValue}"
 
+    implementation "org.slf4j:slf4j-api:${providers.gradleProperty('slf4jVersion').get()}"
     implementation "org.lwjgl:lwjgl-egl:${lwjgl3VersionValue}"
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}"
     implementation "org.lwjgl:lwjgl-opengles:${lwjgl3VersionValue}:natives-windows"
