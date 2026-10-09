@@ -7,7 +7,7 @@ plugins {
 
 def projectName = 'gdx-lwjgl3-angle-d3d11'
 def gdxVersionValue = providers.gradleProperty('gdxVersion').getOrElse('1.14.2')
-def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').getOrElse('3.3.3')
+def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').getOrElse('3.4.3')
 def nativeLibsDir = file('libs')
 def bundledWindowsNativeNames = ['d3dcompiler_47.dll', 'glfw3.dll', 'libEGL.dll', 'libGLESv2.dll']
 
@@ -31,6 +31,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 dependencies {
+    api platform("org.lwjgl:lwjgl-bom:${lwjgl3VersionValue}")
     api "com.badlogicgames.gdx:gdx:${gdxVersionValue}"
     api "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersionValue}"
 
@@ -42,7 +43,7 @@ dependencies {
     // libGDX loads gdx64.dll through its SharedLibraryLoader at runtime.
     runtimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersionValue}:natives-desktop"
 
-    testImplementation platform('org.junit:junit-bom:6.0.0')
+    testImplementation platform('org.junit:junit-bom:6.1.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
