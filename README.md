@@ -46,6 +46,29 @@ test-harness, JDK and dependency metadata, then bundles only the library's four
 native resources and its FFM downcall under
 `src/main/resources/META-INF/native-image/com.github.fabiitch.gdx.lwjgl3/gdx-lwjgl3-angle-d3d11`.
 
+## Maven dependency
+
+Publish the library to Maven local from this repository:
+
+```powershell
+.\gradlew.bat publishToMavenLocal
+```
+
+Consumers use the published artifact instead of importing this Gradle project:
+
+```groovy
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+dependencies {
+    implementation 'com.github.fabiitch.gdx.lwjgl3:gdx-lwjgl3-angle-d3d11:1.0.0-SNAPSHOT'
+}
+```
+
+Republish after changing the Java sources or bundled DLLs. Publication includes
+those DLLs and the library's GraalVM metadata; it does not compile GLFW or ANGLE.
+
 ## Usage
 
 ```java
