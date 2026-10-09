@@ -3,6 +3,7 @@ import groovy.json.JsonSlurper
 
 plugins {
     id 'java-library'
+    id 'maven-publish'
 }
 
 def projectName = 'gdx-lwjgl3-angle-d3d11'
@@ -204,5 +205,11 @@ jar {
                 'Implementation-Title': projectName,
                 'Implementation-Version': archiveVersion
         )
+    }
+}
+
+publishing {
+    publications {
+        library(MavenPublication) { from components.java }
     }
 }
