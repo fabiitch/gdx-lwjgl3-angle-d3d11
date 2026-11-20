@@ -449,6 +449,9 @@ public class Lwjgl3Window implements Disposable {
         synchronized (this) {
             this.requestRendering = true;
         }
+        if (application instanceof Lwjgl3D3D11Application d3d11Application) {
+            d3d11Application.wakeUp();
+        }
     }
 
     boolean shouldClose () {

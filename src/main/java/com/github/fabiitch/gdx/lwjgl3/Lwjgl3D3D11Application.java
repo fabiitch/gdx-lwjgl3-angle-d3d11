@@ -232,9 +232,10 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
             }
 
             if (!haveWindowsRendered) {
-                // Park without polling. postRunnable/exit leave a permit and wake
-                // this loop immediately, even with continuous rendering disabled.
-                LockSupport.parkNanos(1_000_000_000L / Math.max(1, config.idleFPS));
+                // Runnables run after the window updates and can request a frame for the next pass.
+                if (!shouldRequestRendering) {
+                    LockSupport.parkNanos(1_000_000_000L / Math.max(1, config.idleFPS));
+                }
             } else if (targetFramerate > 0) {
                 sync.sync(targetFramerate); // sleep as needed to meet the target framerate
             }
