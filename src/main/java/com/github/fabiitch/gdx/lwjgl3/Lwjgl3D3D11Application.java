@@ -20,7 +20,7 @@ import java.io.File;
 import java.io.PrintStream;
 import java.lang.reflect.Method;
 import java.nio.IntBuffer;
-import java.util.concurrent.locks.LockSupport;
+
 
 import com.badlogic.gdx.ApplicationLogger;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationLogger;
@@ -77,14 +77,15 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
     private int logLevel = LOG_INFO;
     private ApplicationLogger applicationLogger;
     private volatile boolean running = true;
-    private volatile Thread loopThread;
+    private final Object idleLock = new Object();
+    private volatile boolean wakeRequested;
+    private volatile boolean waitingForEvents;
     private final Array<Runnable> runnables = new Array<Runnable>();
     private final Array<Runnable> executedRunnables = new Array<Runnable>();
     private final Array<LifecycleListener> lifecycleListeners = new Array<LifecycleListener>();
     private static GLFWErrorCallback errorCallback;
     private static GLVersion glVersion;
     private static Callback glDebugCallback;
-    private final Sync sync;
     /** Custom GLFW hint provided by the bundled GLFW build (GLFW PR #2889). */
     private static final int GLFW_ANGLE_SURFACE_DIRECT_COMPOSITION = 0x00050004;
     /** Custom GLFW hint provided by the bundled GLFW build (GLFW PR #2904). */
@@ -152,8 +153,6 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
         this.net = Gdx.net = new Lwjgl3Net(config);
         this.clipboard = new Lwjgl3Clipboard();
 
-        this.sync = new Sync();
-
         Lwjgl3Window window = createWindow(config, listener, 0);
         if (config.glEmulation == Lwjgl3ApplicationConfiguration.GLEmulation.ANGLE_GLES32) postLoadANGLE();
         windows.add(window);
@@ -166,15 +165,15 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
             else
                 throw new GdxRuntimeException(t);
         } finally {
-            loopThread = null;
             cleanup();
         }
     }
 
     protected void loop () {
         Array<Lwjgl3Window> closedWindows = new Array<Lwjgl3Window>();
-        loopThread = Thread.currentThread();
         while (running && windows.size > 0) {
+            wakeRequested = false;
+            long frameStartNanos = System.nanoTime();
             // FIXME put it on a separate thread
             audio.update();
 
@@ -234,13 +233,12 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
             if (!haveWindowsRendered) {
                 // Runnables run after the window updates and can request a frame for the next pass.
                 if (!shouldRequestRendering) {
-                    LockSupport.parkNanos(1_000_000_000L / Math.max(1, config.idleFPS));
+                    waitForWindowEvents();
                 }
             } else if (targetFramerate > 0) {
-                sync.sync(targetFramerate); // sleep as needed to meet the target framerate
+                Sync.afterFrame(frameStartNanos, targetFramerate);
             }
         }
-        loopThread = null;
     }
 
     protected void cleanupWindows () {
@@ -393,10 +391,33 @@ public class Lwjgl3D3D11Application implements Lwjgl3ApplicationBase {
         wakeUp();
     }
 
+    private void waitForWindowEvents() {
+        synchronized (idleLock) {
+            waitingForEvents = true;
+            // Work posted since the start of this pass may already have had its OS event polled.
+            if (wakeRequested || !running || windows.size == 0) {
+                waitingForEvents = false;
+                return;
+            }
+        }
+        try {
+            GLFW.glfwWaitEventsTimeout(1.0 / Math.max(1, config.idleFPS));
+        } finally {
+            synchronized (idleLock) {
+                waitingForEvents = false;
+            }
+        }
+    }
+
     void wakeUp () {
-        Thread thread = loopThread;
-        if (thread != null) {
-            LockSupport.unpark(thread);
+        wakeRequested = true;
+        if (waitingForEvents) {
+            synchronized (idleLock) {
+                if (waitingForEvents) {
+                    waitingForEvents = false;
+                    GLFW.glfwPostEmptyEvent();
+                }
+            }
         }
     }
 
