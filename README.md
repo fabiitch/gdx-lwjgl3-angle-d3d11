@@ -30,6 +30,11 @@ all-at-once `GLFWNativeWin32` binding.
 
 ## GraalVM Native Image metadata
 
+The backend uses LWJGL 3.3.3 for Native Image compatibility. On Java 25,
+LWJGL 3.4.3 tries to generate `JNIBindingsImpl` when EGL starts. Native Image
+rejects that runtime class definition. The backend's own GLFW FFM downcall
+uses the metadata below.
+
 This library owns only the metadata for its bundled native resources and its
 `glfwGetWin32Window` FFM downcall. Metadata for other VoidGlass libraries or
 for the Overlay application must remain in their respective projects.

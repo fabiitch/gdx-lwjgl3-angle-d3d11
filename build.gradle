@@ -8,7 +8,7 @@ plugins {
 
 def projectName = 'gdx-lwjgl3-angle-d3d11'
 def gdxVersionValue = providers.gradleProperty('gdxVersion').getOrElse('1.14.2')
-def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').getOrElse('3.4.3')
+def lwjgl3VersionValue = providers.gradleProperty('lwjgl3Version').get()
 def nativeLibsDir = file('libs')
 def bundledWindowsNativeNames = ['d3dcompiler_47.dll', 'glfw3.dll', 'libEGL.dll', 'libGLESv2.dll']
 
